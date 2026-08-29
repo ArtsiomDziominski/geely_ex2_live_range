@@ -1,0 +1,27 @@
+package com.geely.ex2.range.data.vhal
+
+object VhalIds {
+    const val GLOBAL_AREA_ID = 0
+    const val CAR_MANAGER_PROPERTY = "property"
+
+    const val PROP_ED_EV_BATTERY_PERCENTAGE = 0x2140A6ED
+    const val PROP_EV_BATTERY_LEVEL = 0x11600309
+    const val PROP_EV_CURRENT_BATTERY_CAPACITY = 0x1160030D
+    const val PROP_INFO_EV_BATTERY_CAPACITY = 0x11600106
+    const val PROP_PERF_VEHICLE_SPEED = 0x11600207
+    const val PROP_PERF_ODOMETER = 0x11600204
+    const val PROP_CURRENT_GEAR = 0x11400401
+    const val PROP_GEAR_SELECTION = 0x11400400
+    const val PROP_AC_AMBIENT_TEMP = 0x2140A377
+    const val PROP_AC_INSIDE_TEMP = 0x2140A379
+    const val PROP_ENV_OUTSIDE_TEMPERATURE = 0x11600703
+    const val PROP_PEPS_POWER_MODE = 0x2140A331
+    const val PROP_DM_FUNC_DRIVE_MODE_SELECT = 0x22010100
+    const val PROP_SETTING_FUNC_ENERGY_REGENERATION = 0x20020500
+
+    val REGEN_AREAS: IntArray = intArrayOf(0, 1)
+    val GEAR_CANDIDATES: IntArray = intArrayOf(PROP_CURRENT_GEAR, PROP_GEAR_SELECTION)
+
+    const val SPEED_RATE_HZ = 1f
+    const val ON_CHANGE_HZ = 0f
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EX2 Расход</string>
+    <string name="notification_channel">Расход и запас хода</string>
+    <string name="notification_title">Буфер расхода</string>
+    <string name="notification_text">Сбор SOC и пути для окон 5 / 15 / 30 км</string>
+</resources>
