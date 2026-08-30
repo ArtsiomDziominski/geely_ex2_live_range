@@ -45,7 +45,7 @@ fun HelpScreen(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 32.dp, vertical = 8.dp),
     ) {
         Text("Справка", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
@@ -70,7 +70,8 @@ fun HelpScreen(
         Body("5 км — сейчас (пробка, горка, обгон, климат). 15 км — короткий участок. 30 км — более устойчивый темп. Если 5 км сильно меньше 30 км — сейчас едете «дороже», чем в среднем за полчаса пути.")
 
         Section("Ёмкость и кВт·ч")
-        Body("кВт·ч считаются из SOC и заданной полезной ёмкости C. Пока C не подтверждена на авто, цифры кВт·ч ориентировочные.")
+        Body("кВт·ч считаются из SOC и полезной ёмкости C. Для EX2 по умолчанию — 39.4 кВт·ч; при другой комплектации измените вручную.")
+        Body("Сверьте C с VHAL на авто или паспортом комплектации — тогда кВт·ч/100 км будут точнее.")
         OutlinedTextField(
             value = capacityText,
             onValueChange = { text ->

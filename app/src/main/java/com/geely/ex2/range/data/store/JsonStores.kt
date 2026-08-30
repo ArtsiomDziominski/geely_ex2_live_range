@@ -3,6 +3,7 @@ package com.geely.ex2.range.data.store
 import com.geely.ex2.range.domain.model.BufferPoint
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.PeriodSnapshot
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.domain.model.TripSnapshot
 import org.json.JSONArray
@@ -15,9 +16,10 @@ class JsonStores(private val dir: File) {
     private val bufferFile = File(dir, "buffer-checkpoint.json")
 
     fun loadSettings(): SettingsSnapshot {
-        val json = readObject(settingsFile) ?: return SettingsSnapshot(usableCapacityKwh = null)
+        val json = readObject(settingsFile) ?: return SettingsSnapshot()
         val capacity = json.optDouble("usableCapacityKwh", Double.NaN).takeIf { it.isFinite() && it > 0.0 }
-        val reserve = json.optDouble("reserveSocPercent", 20.0)
+            ?: RangeConstants.EX2_DEFAULT_USABLE_CAPACITY_KWH
+        val reserve = json.optDouble("reserveSocPercent", RangeConstants.RESERVE_SOC_PERCENT)
         return SettingsSnapshot(usableCapacityKwh = capacity, reserveSocPercent = reserve)
     }
 

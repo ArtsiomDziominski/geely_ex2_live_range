@@ -21,12 +21,14 @@ import com.geely.ex2.range.domain.tracker.GearMachine
 
 data class EngineView(
     val socPercent: Float?,
+    val socDeltaPoints: Float?,
     val speedKmh: Float?,
     val outsideTempC: Float?,
     val cabinTempC: Float?,
     val gear: Gear?,
     val parked: Boolean,
     val waitingForDrive: Boolean,
+    val charging: Boolean,
     val period: ConsumptionRates,
     val trip: ConsumptionRates,
     val tripIncomplete: Boolean,
@@ -135,6 +137,11 @@ class RangeEngine {
             lastCheckpointElapsedMs = tick.elapsedRealtimeMs
         }
 
+        val socDelta = if (tick.socPercent != null && lastSoc != null) {
+            tick.socPercent - lastSoc!!
+        } else {
+            null
+        }
         lastSoc = tick.socPercent
         val capacity = SocDecoder.usableCapacityKwh(userCapacityKwh, vehicleNominalWh)
         val periodRates = rates(periodDistanceKm, periodSocUsed, capacity)
@@ -148,12 +155,14 @@ class RangeEngine {
         }
         return EngineView(
             socPercent = tick.socPercent,
+            socDeltaPoints = socDelta,
             speedKmh = tick.speedKmh,
             outsideTempC = tick.outsideTempC,
             cabinTempC = tick.cabinTempC,
             gear = gearMachine.displayedGear,
             parked = parked,
             waitingForDrive = parked || (trip?.active != true),
+            charging = charging,
             period = periodRates,
             trip = tripRates,
             tripIncomplete = tripIncomplete && trip?.active == true,

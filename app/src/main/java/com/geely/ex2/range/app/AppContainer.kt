@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class RangeUiState(
     val engine: EngineView? = null,
     val raw: RawTelemetry = RawTelemetry(carReady = false, connectError = null, lines = emptyList()),
-    val settings: SettingsSnapshot = SettingsSnapshot(usableCapacityKwh = null),
+    val settings: SettingsSnapshot = SettingsSnapshot(),
 )
 
 class AppContainer(context: Context) {

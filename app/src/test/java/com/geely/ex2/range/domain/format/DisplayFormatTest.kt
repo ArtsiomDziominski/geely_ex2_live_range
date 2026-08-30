@@ -9,5 +9,6 @@ class DisplayFormatTest {
         assertEquals("64.3%", DisplayFormat.socPercent(64.3f))
         assertEquals("64%", DisplayFormat.socPercent(64f))
         assertEquals("нет SOC", DisplayFormat.socPercent(null))
+        assertEquals("SOC (↑0.2%)", DisplayFormat.socDeltaLabel(0.2f))
     }
 }

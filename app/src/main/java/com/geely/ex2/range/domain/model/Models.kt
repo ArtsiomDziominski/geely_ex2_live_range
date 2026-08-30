@@ -48,7 +48,7 @@ data class TripSnapshot(
 )
 
 data class SettingsSnapshot(
-    val usableCapacityKwh: Double?,
+    val usableCapacityKwh: Double? = RangeConstants.EX2_DEFAULT_USABLE_CAPACITY_KWH,
     val reserveSocPercent: Double = RangeConstants.RESERVE_SOC_PERCENT,
 )
 
@@ -76,6 +76,13 @@ data class RangeWindow(
     val rangeTo0Km: Double? = null,
     val rangeToReserveKm: Double? = null,
     val deltaSocPoints: Double? = null,
+    val chart: List<WindowChartPoint> = emptyList(),
+)
+
+/** SOC sample for a window sparkline; [km] is distance within the window (0…windowKm). */
+data class WindowChartPoint(
+    val km: Float,
+    val soc: Float,
 )
 
 data class ConsumptionRates(
@@ -108,6 +115,8 @@ object RangeConstants {
     const val BUFFER_KEEP_KM = 35.0
     const val MIN_SOC_STEP = 0.5
     const val RESERVE_SOC_PERCENT = 20.0
+    /** Geely EX2 — полезная ёмкость батареи, кВт·ч (проверено на авто). */
+    const val EX2_DEFAULT_USABLE_CAPACITY_KWH = 39.4
     const val GEAR_DEBOUNCE_MS = 500L
     const val STABLE_PARK_MS = 2_000L
     const val STANDSTILL_KMH = 0.5

@@ -54,6 +54,16 @@ class RangeWindowsTest {
         assertEquals(0.0, window.rangeToReserveKm!!, 0.0)
     }
 
+    @Test
+    fun readyWindowIncludesChartSamples() {
+        val buffer = buffer(0.0 to 80f, 2.5 to 77f, 5.0 to 75f)
+        val window = RangeWindows.estimate(buffer, 5.0, socNow = 75f)
+        assertEquals(WindowStatus.READY, window.status)
+        assertTrue(window.chart.size >= 2)
+        assertEquals(0f, window.chart.first().km, 0.05f)
+        assertEquals(5f, window.chart.last().km, 0.05f)
+    }
+
     private fun buffer(vararg kmSoc: Pair<Double, Float>): SampleRingBuffer {
         val buffer = SampleRingBuffer()
         kmSoc.forEach { (km, soc) -> buffer.add(point(km, soc)) }
