@@ -28,15 +28,17 @@ private val FlymeOutlineDark = Color(0xFF3E4250)
 
 val ChargingGreen = Color(0xFF34C759)
 val WarningAmber = Color(0xFFE6B422)
+val LowSocRed = Color(0xFFFF3B30)
 
 @Immutable
 data class RangeExtraColors(
     val charging: Color,
     val warning: Color,
+    val lowSoc: Color,
 )
 
 private val LocalExtraColors = staticCompositionLocalOf {
-    RangeExtraColors(charging = ChargingGreen, warning = WarningAmber)
+    RangeExtraColors(charging = ChargingGreen, warning = WarningAmber, lowSoc = LowSocRed)
 }
 
 object RangeThemeColors {
@@ -74,7 +76,7 @@ fun RangeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val extra = RangeExtraColors(charging = ChargingGreen, warning = WarningAmber)
+    val extra = RangeExtraColors(charging = ChargingGreen, warning = WarningAmber, lowSoc = LowSocRed)
     CompositionLocalProvider(LocalExtraColors provides extra) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,

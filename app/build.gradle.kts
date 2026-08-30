@@ -45,8 +45,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "UI_PREVIEW_MOCK", "true")
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField("boolean", "UI_PREVIEW_MOCK", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -65,6 +69,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

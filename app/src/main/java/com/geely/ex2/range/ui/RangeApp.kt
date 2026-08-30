@@ -30,16 +30,17 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.geely.ex2.range.ui.dashboard.DashboardScreen
 import com.geely.ex2.range.ui.help.HelpScreen
+import com.geely.ex2.range.ui.settings.SettingsScreen
 
 private const val ROUTE_DASHBOARD = "dashboard"
 private const val ROUTE_HELP = "help"
+private const val ROUTE_SETTINGS = "settings"
 
 @Composable
 fun RangeApp(viewModel: RangeViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val route = navController.currentBackStackEntryAsState().value?.destination?.route
-    val onHelp = route == ROUTE_HELP
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -58,14 +59,20 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
                 Row(horizontalArrangement = Arrangement.Center) {
                     TabLabel(
                         title = "Главная",
-                        selected = !onHelp,
+                        selected = route == ROUTE_DASHBOARD,
                         onClick = { navController.navigate(ROUTE_DASHBOARD) { launchSingleTop = true } },
                     )
                     Spacer(Modifier.width(8.dp))
                     TabLabel(
                         title = "Справка",
-                        selected = onHelp,
+                        selected = route == ROUTE_HELP,
                         onClick = { navController.navigate(ROUTE_HELP) { launchSingleTop = true } },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TabLabel(
+                        title = "Настройки",
+                        selected = route == ROUTE_SETTINGS,
+                        onClick = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
                     )
                 }
                 Spacer(Modifier.weight(1f))
@@ -87,6 +94,9 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
                         state = state,
                         onCapacityChange = viewModel::setUserCapacityKwh,
                     )
+                }
+                composable(ROUTE_SETTINGS) {
+                    SettingsScreen(state = state)
                 }
             }
         }

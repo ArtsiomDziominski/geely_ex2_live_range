@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.geely.ex2.range.domain.format.DisplayFormat
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.ui.theme.RangeThemeColors
 
 private const val SEGMENT_COUNT = 4
@@ -42,10 +43,12 @@ fun SocBatteryIndicator(
 ) {
     val extra = RangeThemeColors.extra
     val outline = MaterialTheme.colorScheme.onSurface
-    val fill = if (charging) extra.charging else MaterialTheme.colorScheme.primary
+    val fillGreen = extra.charging
+    val fillRed = extra.lowSoc
     val empty = MaterialTheme.colorScheme.surfaceVariant
     val textColor = MaterialTheme.colorScheme.onSurface
     val captionColor = if (charging) extra.charging else MaterialTheme.colorScheme.onSurfaceVariant
+    val reserveSoc = RangeConstants.RESERVE_SOC_PERCENT.toFloat()
     val level = socPercent?.takeIf { it.isFinite() }?.coerceIn(0f, 100f)
     val label = if (level == null) "нет SOC" else "${DisplayFormat.socNumber(level)}%"
 
@@ -87,14 +90,21 @@ fun SocBatteryIndicator(
                     val segGap = innerH * 0.08f
                     val segW = (innerW - segGap * (SEGMENT_COUNT - 1)) / SEGMENT_COUNT
                     val filled = level / 100f * SEGMENT_COUNT
+                    val lastFilledIndex = (filled - 1e-5f)
+                        .toInt()
+                        .coerceIn(0, SEGMENT_COUNT - 1)
 
                     clipPath(bodyPath, ClipOp.Intersect) {
                         for (i in 0 until SEGMENT_COUNT) {
                             val segFill = (filled - i).coerceIn(0f, 1f)
                             if (segFill <= 0f) continue
                             val x = innerLeft + i * (segW + segGap)
+                            val segmentColor = when {
+                                i == lastFilledIndex && level < reserveSoc -> fillRed
+                                else -> fillGreen
+                            }
                             drawRoundRect(
-                                color = fill,
+                                color = segmentColor,
                                 topLeft = Offset(x, innerTop),
                                 size = Size(segW * segFill, innerH),
                                 cornerRadius = CornerRadius(innerH * 0.12f, innerH * 0.12f),

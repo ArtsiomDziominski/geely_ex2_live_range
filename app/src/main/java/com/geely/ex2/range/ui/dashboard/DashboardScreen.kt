@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Route
+import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.geely.ex2.range.app.RangeUiState
@@ -74,7 +76,7 @@ fun DashboardScreen(
                     TextButton(onClick = onResetPeriod) { Text("Сброс") }
                 },
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(0.88f)
                     .fillMaxHeight(),
             )
             MetricCard(
@@ -85,7 +87,13 @@ fun DashboardScreen(
                 pct = metricPct(engine?.trip?.pctPer100, charging || engine?.waitingForDrive == true),
                 muted = engine?.waitingForDrive == true,
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(0.88f)
+                    .fillMaxHeight(),
+            )
+            InclinationCard(
+                pitchDegrees = state.pitchDegrees,
+                modifier = Modifier
+                    .weight(0.62f)
                     .fillMaxHeight(),
             )
         }
@@ -155,6 +163,8 @@ private fun HeaderCell(
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
     captionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
+    val valueFontSize = MaterialTheme.typography.headlineSmall.fontSize * 3
+    val unitFontSize = MaterialTheme.typography.titleLarge.fontSize * 1.5f
     Column(
         modifier = modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -167,15 +177,16 @@ private fun HeaderCell(
             }
             Text(
                 value,
-                fontSize = 42.sp,
+                fontSize = valueFontSize,
                 fontWeight = FontWeight.SemiBold,
                 color = valueColor,
             )
             if (unit != null) {
                 Text(
                     unit,
-                    modifier = Modifier.padding(start = 6.dp, top = 10.dp),
-                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 8.dp, top = 16.dp),
+                    fontSize = unitFontSize,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -220,6 +231,12 @@ private fun MetricCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "/100 км",
+                    modifier = Modifier.padding(start = 6.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Spacer(Modifier.weight(1f))
                 if (hint != null) {
                     Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -227,26 +244,101 @@ private fun MetricCard(
                 trailing?.invoke()
             }
             Spacer(Modifier.height(16.dp))
+            val metricFontSize = MaterialTheme.typography.headlineSmall.fontSize * 3
             Row(
-                Modifier.fillMaxWidth().weight(1f),
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     kwh,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     color = valueColor,
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = metricFontSize,
                     fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
                 )
                 VerticalDivider(Modifier.fillMaxHeight(0.6f), color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
                     pct,
-                    modifier = Modifier.weight(1f).padding(start = 16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     color = valueColor,
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = metricFontSize,
                     fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun InclinationCard(
+    pitchDegrees: Float?,
+    modifier: Modifier = Modifier,
+) {
+    val valueColor = MaterialTheme.colorScheme.onSurface
+    val valueFontSize = MaterialTheme.typography.headlineSmall.fontSize * 3
+    val hasValue = pitchDegrees != null && pitchDegrees.isFinite()
+    val pitchLabel = if (hasValue) DisplayFormat.pitchDegrees(pitchDegrees) else "—"
+    val slopeHint = when {
+        !hasValue -> "нет данных"
+        pitchDegrees!! > 0.5f -> "подъём"
+        pitchDegrees < -0.5f -> "спуск"
+        else -> "ровно"
+    }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Terrain,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Наклон",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    pitchLabel,
+                    fontSize = valueFontSize,
+                    fontWeight = FontWeight.SemiBold,
+                    color = valueColor,
+                )
+                Text(
+                    "°",
+                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
+                    fontSize = MaterialTheme.typography.titleLarge.fontSize * 1.5f,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                slopeHint,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
@@ -389,12 +481,12 @@ private fun StatusText(text: String) {
 
 private fun metricKwh(value: Double?, placeholder: Boolean): String {
     if (placeholder) return "--- кВт·ч"
-    return DisplayFormat.kWhPer100(value)
+    return "${DisplayFormat.kWhPer100Number(value)} кВт·ч"
 }
 
 private fun metricPct(value: Double?, placeholder: Boolean): String {
-    if (placeholder) return "--- %/100 км"
-    return DisplayFormat.pctPer100(value)
+    if (placeholder) return "--- %"
+    return "${DisplayFormat.pctPer100Number(value)} %"
 }
 
 private fun tripHint(engine: EngineView?): String {

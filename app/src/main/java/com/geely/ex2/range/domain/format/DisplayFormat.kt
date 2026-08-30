@@ -51,9 +51,25 @@ object DisplayFormat {
         return String.format(Locale.US, "%.0f %%/100 км", value)
     }
 
+    fun pctPer100Number(value: Double?): String {
+        if (value == null || !value.isFinite()) return "—"
+        return String.format(Locale.US, "%.0f", value)
+    }
+
     fun kWhPer100(value: Double?): String {
         if (value == null || !value.isFinite()) return "—"
         return String.format(Locale.US, "%.1f кВт·ч/100 км", value)
+    }
+
+    fun kWhPer100Number(value: Double?): String {
+        if (value == null || !value.isFinite()) return "—"
+        return String.format(Locale.US, "%.1f", value)
+    }
+
+    fun pitchDegrees(value: Float?): String {
+        if (value == null || !value.isFinite()) return "—"
+        val sign = if (value > 0f) "+" else if (value < 0f) "-" else ""
+        return String.format(Locale.US, "%s%.1f", sign, kotlin.math.abs(value))
     }
 
     fun windowKmLabel(windowKm: Double): String {
