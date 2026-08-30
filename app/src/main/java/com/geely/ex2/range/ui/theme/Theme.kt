@@ -9,6 +9,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.geely.ex2.range.domain.model.AppThemeMode
 
 val FlymeAccent = Color(0xFF007AFF)
 
@@ -70,6 +71,15 @@ private val DarkColors = darkColorScheme(
     outline = FlymeOutlineDark,
     outlineVariant = FlymeOutlineDark,
 )
+
+@Composable
+fun resolveDarkTheme(mode: AppThemeMode): Boolean {
+    return when (mode) {
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
+        AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+}
 
 @Composable
 fun RangeTheme(

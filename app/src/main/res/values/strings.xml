@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">EX2 Расход</string>
-    <string name="notification_channel">Расход и запас хода</string>
-    <string name="notification_title">Буфер расхода</string>
+    <string name="app_name">Electro EX2 — Прогноз пробега</string>
+    <string name="app_title">Прогноз пробега</string>
+    <string name="notification_channel">Прогноз пробега</string>
+    <string name="notification_title">Прогноз пробега</string>
     <string name="notification_text">Сбор SOC и пути для окон 5 / 15 / 30 км</string>
+    <string name="app_info_title">О приложении</string>
+    <string name="app_info_close">Понятно</string>
+    <string name="app_info_content">Electro EX2 — Прогноз пробега показывает, сколько километров вы ещё проедете при текущем стиле вождения.\n\nНа главном экране — расход за период и поездку, наклон дороги и прогноз остатка хода по окнам 5, 15 и 30 км. Чем больше окно, тем устойчивее оценка; короткое окно быстрее реагирует на пробку, горку или климат.\n\nБольшая цифра — запас до 0% SOC, в скобках — до 20% (рекомендуемый резерв). Данные берутся с бортовой сети авто: SOC, скорость, пробег, температура.\n\nВ настройках можно включить виджет поверх других приложений и выбрать тему оформления.</string>
+    <string name="app_info_content_description">О приложении</string>
 </resources>

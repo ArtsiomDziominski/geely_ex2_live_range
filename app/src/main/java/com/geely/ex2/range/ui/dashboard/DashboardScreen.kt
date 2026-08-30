@@ -1,6 +1,7 @@
 package com.geely.ex2.range.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -245,28 +246,14 @@ private fun MetricCard(
             }
             Spacer(Modifier.height(16.dp))
             val metricFontSize = MaterialTheme.typography.headlineSmall.fontSize * 3
-            Row(
-                Modifier
+            Box(
+                modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    kwh,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    color = valueColor,
-                    fontSize = metricFontSize,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                )
-                VerticalDivider(Modifier.fillMaxHeight(0.6f), color = MaterialTheme.colorScheme.outlineVariant)
-                Text(
-                    pct,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                    text = metricLine(kwh, pct),
                     color = valueColor,
                     fontSize = metricFontSize,
                     fontWeight = FontWeight.Medium,
@@ -478,6 +465,8 @@ private fun StatusText(text: String) {
         fontWeight = FontWeight.Medium,
     )
 }
+
+private fun metricLine(kwh: String, pct: String): String = "$kwh ($pct)"
 
 private fun metricKwh(value: Double?, placeholder: Boolean): String {
     if (placeholder) return "--- кВт·ч"

@@ -11,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.geely.ex2.range.service.RangeTrackingService
-import com.geely.ex2.range.ui.theme.RangeTheme
 
 class MainActivity : AppCompatActivity() {
     private val notificationPermission = registerForActivityResult(
@@ -25,9 +24,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         requestNotificationAndStart()
         setContent {
-            RangeTheme {
-                RangeApp()
-            }
+            RangeApp()
         }
     }
 

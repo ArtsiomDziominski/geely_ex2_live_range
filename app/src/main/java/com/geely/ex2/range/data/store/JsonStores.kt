@@ -4,6 +4,7 @@ import com.geely.ex2.range.domain.model.BufferPoint
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RangeConstants
+import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.domain.model.TripSnapshot
 import org.json.JSONArray
@@ -20,13 +21,28 @@ class JsonStores(private val dir: File) {
         val capacity = json.optDouble("usableCapacityKwh", Double.NaN).takeIf { it.isFinite() && it > 0.0 }
             ?: RangeConstants.EX2_DEFAULT_USABLE_CAPACITY_KWH
         val reserve = json.optDouble("reserveSocPercent", RangeConstants.RESERVE_SOC_PERCENT)
-        return SettingsSnapshot(usableCapacityKwh = capacity, reserveSocPercent = reserve)
+        val overlayEnabled = json.optBoolean("overlayEnabled", false)
+        val overlayX = json.optInt("overlayX").takeIf { json.has("overlayX") && !json.isNull("overlayX") }
+        val overlayY = json.optInt("overlayY").takeIf { json.has("overlayY") && !json.isNull("overlayY") }
+        val themeMode = AppThemeMode.fromStorageKey(json.optString("themeMode", null))
+        return SettingsSnapshot(
+            usableCapacityKwh = capacity,
+            reserveSocPercent = reserve,
+            overlayEnabled = overlayEnabled,
+            overlayX = overlayX,
+            overlayY = overlayY,
+            themeMode = themeMode,
+        )
     }
 
     fun saveSettings(settings: SettingsSnapshot) {
         val json = JSONObject()
             .put("usableCapacityKwh", settings.usableCapacityKwh ?: JSONObject.NULL)
             .put("reserveSocPercent", settings.reserveSocPercent)
+            .put("overlayEnabled", settings.overlayEnabled)
+            .put("overlayX", settings.overlayX ?: JSONObject.NULL)
+            .put("overlayY", settings.overlayY ?: JSONObject.NULL)
+            .put("themeMode", settings.themeMode.storageKey)
         atomicWrite(settingsFile, json.toString())
     }
 

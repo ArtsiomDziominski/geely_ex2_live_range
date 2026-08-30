@@ -32,6 +32,7 @@ class RangeTrackingService : LifecycleService() {
             startForeground(NOTIFICATION_ID, notification)
         }
         val container = (application as RangeApplication).container
+        container.attachOverlay()
         container.startReader()
         lifecycleScope.launch {
             while (isActive) {
@@ -47,7 +48,9 @@ class RangeTrackingService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        (application as RangeApplication).container.closeReader()
+        val container = (application as RangeApplication).container
+        container.releaseOverlay()
+        container.closeReader()
         super.onDestroy()
     }
 

@@ -47,9 +47,26 @@ data class TripSnapshot(
     val lastSocUsedPoints: Double,
 )
 
+enum class AppThemeMode(val storageKey: String, val label: String) {
+    SYSTEM("system", "Система"),
+    LIGHT("light", "Светлая"),
+    DARK("dark", "Тёмная"),
+    ;
+
+    companion object {
+        fun fromStorageKey(key: String?): AppThemeMode {
+            return entries.find { it.storageKey == key } ?: SYSTEM
+        }
+    }
+}
+
 data class SettingsSnapshot(
     val usableCapacityKwh: Double? = RangeConstants.EX2_DEFAULT_USABLE_CAPACITY_KWH,
     val reserveSocPercent: Double = RangeConstants.RESERVE_SOC_PERCENT,
+    val overlayEnabled: Boolean = false,
+    val overlayX: Int? = null,
+    val overlayY: Int? = null,
+    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
 )
 
 data class EngineCheckpoint(

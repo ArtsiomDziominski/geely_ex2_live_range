@@ -7,10 +7,12 @@ import com.geely.ex2.range.data.vhal.VehicleTelemetryReader
 import com.geely.ex2.range.debug.UiPreviewMock
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.engine.RangeEngine
+import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.SettingsSnapshot
+import com.geely.ex2.range.overlay.RangeOverlayController
 import com.geely.ex2.range.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +33,9 @@ class AppContainer(context: Context) {
     private val time = AndroidTimeSource()
     private val reader = VehicleTelemetryReader(appContext)
     private val inclination = InclinationSensor(appContext)
+    private val overlay = RangeOverlayController(appContext) { x, y ->
+        setOverlayPosition(x, y)
+    }
 
     private val _uiState = MutableStateFlow(RangeUiState(settings = stores.loadSettings()))
     val uiState: StateFlow<RangeUiState> = _uiState.asStateFlow()
@@ -71,16 +76,97 @@ class AppContainer(context: Context) {
         _uiState.value = _uiState.value.copy(raw = raw)
     }
 
+    fun attachOverlay() {
+        val settings = _uiState.value.settings
+        overlay.setThemeMode(settings.themeMode)
+        overlay.setSavedPosition(settings.overlayX, settings.overlayY)
+        overlay.attach()
+        if (settings.overlayEnabled && overlay.canDraw()) {
+            overlay.setEnabled(true)
+            syncOverlay(_uiState.value.engine)
+        }
+    }
+
+    fun releaseOverlay() {
+        overlay.release()
+    }
+
+    fun canDrawOverlays(): Boolean = overlay.canDraw()
+
+    fun setOverlayEnabled(enabled: Boolean) {
+        synchronized(lock) {
+            val settings = _uiState.value.settings.copy(overlayEnabled = enabled)
+            if (!mockActive) {
+                stores.saveSettings(settings)
+            }
+            _uiState.value = _uiState.value.copy(settings = settings)
+            overlay.setSavedPosition(settings.overlayX, settings.overlayY)
+            overlay.setEnabled(enabled)
+            if (enabled) {
+                syncOverlay(_uiState.value.engine)
+            }
+        }
+    }
+
+    fun setThemeMode(mode: AppThemeMode) {
+        synchronized(lock) {
+            val settings = _uiState.value.settings.copy(themeMode = mode)
+            if (!mockActive) {
+                stores.saveSettings(settings)
+            }
+            _uiState.value = _uiState.value.copy(settings = settings)
+            overlay.setThemeMode(mode)
+        }
+    }
+
+    private fun setOverlayPosition(x: Int, y: Int) {
+        synchronized(lock) {
+            val settings = _uiState.value.settings.copy(overlayX = x, overlayY = y)
+            if (!mockActive) {
+                stores.saveSettings(settings)
+            }
+            _uiState.value = _uiState.value.copy(settings = settings)
+        }
+    }
+
+    private fun publishState(
+        view: EngineView?,
+        pitchDegrees: Float?,
+        raw: RawTelemetry,
+    ) {
+        val settings = _uiState.value.settings.copy(
+            usableCapacityKwh = if (view?.capacityIsUserSet == true) {
+                view.usableCapacityKwh
+            } else {
+                _uiState.value.settings.usableCapacityKwh
+            },
+        )
+        _uiState.value = RangeUiState(
+            engine = view,
+            pitchDegrees = pitchDegrees,
+            raw = raw,
+            settings = settings,
+        )
+        syncOverlay(view)
+    }
+
+    private fun syncOverlay(view: EngineView?) {
+        if (!_uiState.value.settings.overlayEnabled) return
+        overlay.update(
+            windows = view?.windows.orEmpty(),
+            charging = view?.charging == true,
+        )
+    }
+
     fun poll() {
         if (mockActive) {
             val read = UiPreviewMock.read(time.wallClockMs())
             synchronized(lock) {
                 val view = engine.onTick(read.tick)
-                _uiState.value = RangeUiState(
-                    engine = view,
+                publishState(
+                    view = view,
                     pitchDegrees = UiPreviewMock.pitchDegrees(time.wallClockMs()),
                     raw = read.raw,
-                    settings = _uiState.value.settings,
                 )
             }
             return
@@ -106,11 +192,10 @@ class AppContainer(context: Context) {
             if (view.persistBuffer) {
                 stores.saveCheckpoint(checkpoint)
             }
-            _uiState.value = RangeUiState(
-                engine = view,
+            publishState(
+                view = view,
                 pitchDegrees = inclination.pitchDegrees(),
                 raw = read.raw,
-                settings = _uiState.value.settings.copy(usableCapacityKwh = if (view.capacityIsUserSet) view.usableCapacityKwh else _uiState.value.settings.usableCapacityKwh),
             )
         }
         if (read.raw.carReady) {
@@ -141,7 +226,7 @@ class AppContainer(context: Context) {
     fun setUserCapacityKwh(value: Double?) {
         synchronized(lock) {
             engine.setUserCapacityKwh(value)
-            val settings = SettingsSnapshot(usableCapacityKwh = value)
+            val settings = _uiState.value.settings.copy(usableCapacityKwh = value)
             if (!mockActive) {
                 stores.saveSettings(settings)
             }
