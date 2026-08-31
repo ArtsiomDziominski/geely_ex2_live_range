@@ -9,14 +9,14 @@ app/                 Application, AppContainer, TimeSource
 data/vhal/           CarClient (reflection), VehicleTelemetryReader, VhalIds
 data/store/          period.json, settings.json, buffer-checkpoint.json
 domain/engine/       RangeEngine — период, поездка, буфер, окна
-domain/calculation/  расход, интеграл пути, прогноз окон
+domain/calculation/  расход, одометр, прогноз окон
 domain/tracker/      передача: debounce 500 мс, устойчивый P 2 с
 domain/decode/       SOC, скорость, t°, P/R/N/D
 ```
 
 ## Потоки
 
-1. Сервис раз в 1 с читает VHAL (скорость также callback 1 Гц, передача ONCHANGE).
+1. Сервис раз в 1 с читает VHAL. Скорость — только callback 1 Гц. Передача — ONCHANGE. SOC и одометр — опрос раз в 10 с. Уличная t° — опрос раз в 200 с.
 2. `RangeEngine.onTick` обновляет путь, период, поездку и кольцо ≥ 35 км.
 3. На устойчивом P пишется `period.json` (идемпотентно на одну парковку).
 4. Checkpoint буфера — каждые ~5 с и при P.

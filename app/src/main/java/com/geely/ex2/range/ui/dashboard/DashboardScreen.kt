@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Terrain
@@ -23,15 +22,23 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,6 +48,7 @@ import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.RangeWindow
 import com.geely.ex2.range.domain.model.WindowStatus
+import com.geely.ex2.range.R
 import com.geely.ex2.range.ui.theme.RangeThemeColors
 
 @Composable
@@ -70,7 +78,7 @@ fun DashboardScreen(
         ) {
             MetricCard(
                 title = "Период",
-                icon = Icons.Outlined.CalendarMonth,
+                icon = painterResource(R.drawable.directions_car_24),
                 kwh = metricKwh(engine?.period?.kWhPer100, charging),
                 pct = metricPct(engine?.period?.pctPer100, charging),
                 trailing = {
@@ -82,7 +90,7 @@ fun DashboardScreen(
             )
             MetricCard(
                 title = "Поездка",
-                icon = Icons.Outlined.Route,
+                icon = rememberVectorPainter(Icons.Outlined.Route),
                 hint = tripHint(engine),
                 kwh = metricKwh(engine?.trip?.kWhPer100, charging || engine?.waitingForDrive == true),
                 pct = metricPct(engine?.trip?.pctPer100, charging || engine?.waitingForDrive == true),
@@ -149,6 +157,8 @@ private fun LiveHeader(
             HeaderCell(
                 modifier = Modifier.weight(0.7f),
                 value = engine?.gear?.label ?: "—",
+                caption = DisplayFormat.odometerKm(engine?.odometerKm),
+                captionSmall = true,
             )
         }
     }
@@ -161,6 +171,7 @@ private fun HeaderCell(
     value: String,
     unit: String? = null,
     caption: String? = null,
+    captionSmall: Boolean = false,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
     captionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
@@ -193,7 +204,15 @@ private fun HeaderCell(
             }
         }
         if (caption != null) {
-            Text(caption, color = captionColor, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                caption,
+                color = captionColor,
+                style = if (captionSmall) {
+                    MaterialTheme.typography.bodySmall
+                } else {
+                    MaterialTheme.typography.bodyMedium
+                },
+            )
         }
     }
 }
@@ -201,7 +220,7 @@ private fun HeaderCell(
 @Composable
 private fun MetricCard(
     title: String,
-    icon: ImageVector,
+    icon: Painter,
     kwh: String,
     pct: String,
     modifier: Modifier = Modifier,
@@ -337,13 +356,17 @@ private fun ForecastCard(
     modifier: Modifier = Modifier,
 ) {
     val extra = RangeThemeColors.extra
+    var showForecastInfo by remember { mutableStateOf(false) }
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.fillMaxSize().padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(
                     Icons.AutoMirrored.Outlined.ShowChart,
                     contentDescription = null,
@@ -355,7 +378,18 @@ private fun ForecastCard(
                     "Остаток при текущем темпе",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = { showForecastInfo = true }) {
+                    Icon(
+                        Icons.Outlined.Info,
+                        contentDescription = stringResource(R.string.forecast_info_content_description),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (showForecastInfo) {
+                ForecastInfoDialog(onDismiss = { showForecastInfo = false })
             }
             if (charging) {
                 Spacer(Modifier.height(12.dp))
@@ -417,28 +451,42 @@ private fun WindowColumn(window: RangeWindow, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.weight(0.25f))
         WindowPaceChart(
             windowKm = window.windowKm,
             status = window.status,
             points = window.chart,
             remainingToFillKm = window.remainingToFillKm,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
         )
+        Spacer(Modifier.weight(0.25f))
         Spacer(Modifier.height(8.dp))
         when (window.status) {
             WindowStatus.READY -> {
-                Text(
-                    DisplayFormat.km(window.rangeTo0Km, digits = 0),
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold,
-                )
                 val reserve = window.rangeToReserveKm ?: 0.0
-                val reserveText = if (reserve <= 0.0) {
-                    "до 20%: резерв"
+                val reserveCaption = if (reserve <= 0.0) {
+                    "резерв"
                 } else {
-                    "до 20%: ${DisplayFormat.km(reserve, digits = 0)}"
+                    DisplayFormat.km(reserve, digits = 0)
                 }
-                Text("($reserveText)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        DisplayFormat.km(window.rangeTo0Km, digits = 0),
+                        fontSize = 54.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        " ($reserveCaption)",
+                        modifier = Modifier.padding(bottom = 6.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 24.sp,
+                    )
+                }
             }
             WindowStatus.NEED_MORE_KM -> {
                 val left = window.remainingToFillKm ?: window.windowKm

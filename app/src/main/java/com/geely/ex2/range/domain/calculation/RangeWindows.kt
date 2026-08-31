@@ -110,6 +110,7 @@ object RangeWindows {
             WindowChartPoint(
                 km = ((point.cumulativeKm - startKm).coerceIn(0.0, windowKm)).toFloat(),
                 soc = point.socPercent,
+                speedKmh = point.speedKmh,
             )
         }
         return downsample(mapped)
@@ -125,6 +126,7 @@ object RangeWindows {
             WindowChartPoint(
                 km = ((point.cumulativeKm - startKm).coerceIn(0.0, windowKm)).toFloat(),
                 soc = point.socPercent,
+                speedKmh = point.speedKmh,
             )
         }
         return downsample(mapped)

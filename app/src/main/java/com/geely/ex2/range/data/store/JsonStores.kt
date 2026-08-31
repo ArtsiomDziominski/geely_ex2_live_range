@@ -99,6 +99,11 @@ class JsonStores(private val dir: File) {
                         wallClockMs = item.optLong("wall"),
                         cumulativeKm = item.optDouble("km"),
                         socPercent = item.optDouble("soc").toFloat(),
+                        speedKmh = if (item.has("speed") && !item.isNull("speed")) {
+                            item.optDouble("speed").toFloat().takeIf { it.isFinite() && it >= 0f }
+                        } else {
+                            null
+                        },
                         chargingLikely = item.optBoolean("charging"),
                         gap = item.optBoolean("gap"),
                     ),
@@ -127,6 +132,7 @@ class JsonStores(private val dir: File) {
                     .put("wall", point.wallClockMs)
                     .put("km", point.cumulativeKm)
                     .put("soc", point.socPercent.toDouble())
+                    .put("speed", point.speedKmh?.toDouble() ?: JSONObject.NULL)
                     .put("charging", point.chargingLikely)
                     .put("gap", point.gap),
             )

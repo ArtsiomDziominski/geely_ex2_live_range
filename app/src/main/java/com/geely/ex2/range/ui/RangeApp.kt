@@ -6,11 +6,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.tappableElement
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -29,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -89,22 +95,33 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
         }
     }
 
+    val configuration = LocalConfiguration.current
+    val screenInsets = WindowInsets.systemBars.union(WindowInsets.tappableElement)
+    val insetPadding = screenInsets.asPaddingValues()
+    val fallbackBottomPadding = if (
+        insetPadding.calculateBottomPadding() < 24.dp &&
+        configuration.screenWidthDp >= 960
+    ) {
+        88.dp
+    } else {
+        0.dp
+    }
+
     RangeTheme(darkTheme = resolveDarkTheme(state.settings.themeMode)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(screenInsets)
+                .padding(bottom = fallbackBottomPadding),
+        ) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                Text(
-                    stringResource(R.string.app_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.align(Alignment.CenterStart),
-                )
                 Row(
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier.align(Alignment.CenterStart),
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     TabLabel(
@@ -112,29 +129,35 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
                         selected = route == ROUTE_DASHBOARD,
                         onClick = { navController.navigate(ROUTE_DASHBOARD) { launchSingleTop = true } },
                     )
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(8.dp))
                     TabLabel(
                         title = "Справка",
                         selected = route == ROUTE_HELP,
                         onClick = { navController.navigate(ROUTE_HELP) { launchSingleTop = true } },
                     )
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(8.dp))
                     TabLabel(
                         title = "Настройки",
                         selected = route == ROUTE_SETTINGS,
                         onClick = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
                     )
                 }
+                Text(
+                    stringResource(R.string.app_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Center),
+                )
                 IconButton(
                     onClick = { showAppInfo = true },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .height(80.dp),
+                        .height(40.dp),
                 ) {
                     Icon(
                         Icons.Outlined.Info,
                         contentDescription = stringResource(R.string.app_info_content_description),
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
@@ -146,7 +169,9 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
             NavHost(
                 navController = navController,
                 startDestination = ROUTE_DASHBOARD,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
             ) {
                 composable(ROUTE_DASHBOARD) {
                     DashboardScreen(
@@ -181,13 +206,13 @@ private fun TabLabel(
 ) {
     TextButton(
         onClick = onClick,
-        modifier = Modifier.height(80.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier.height(40.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 title,
-                fontSize = 28.sp,
+                fontSize = 14.sp,
                 color = if (selected) {
                     MaterialTheme.colorScheme.primary
                 } else {
@@ -197,9 +222,9 @@ private fun TabLabel(
             )
             Box(
                 Modifier
-                    .padding(top = 8.dp)
-                    .height(4.dp)
-                    .width(96.dp),
+                    .padding(top = 4.dp)
+                    .height(2.dp)
+                    .width(48.dp),
             ) {
                 if (selected) {
                     Surface(

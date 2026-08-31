@@ -27,8 +27,8 @@ class DistanceAccumulator {
         private set
 
     private var lastElapsedMs: Long? = null
-    private var lastSpeedKmh: Float? = null
     private var lastOdometerKm: Float? = null
+    private var lastOdometerElapsedMs: Long? = null
     var odometerTrusted: Boolean = false
         private set
 
@@ -36,11 +36,11 @@ class DistanceAccumulator {
         this.totalKm = totalKm.coerceAtLeast(0.0)
         this.lastOdometerKm = lastOdometerKm
         lastElapsedMs = null
-        lastSpeedKmh = null
+        lastOdometerElapsedMs = null
     }
 
     /**
-     * @return kilometres added this tick (0 when parked, Acc Off, standstill, or gap).
+     * @return kilometres added this tick from odometer only (0 when parked, Acc Off, or gap).
      */
     fun onTick(
         elapsedMs: Long,
@@ -50,48 +50,47 @@ class DistanceAccumulator {
         accOff: Boolean,
     ): DistanceTick {
         val previousElapsed = lastElapsedMs
-        val dtMs = if (previousElapsed != null) (elapsedMs - previousElapsed).coerceAtLeast(0L) else 0L
-        val gap = previousElapsed != null && dtMs >= RangeConstants.GAP_ELAPSED_MS
+        val pollDtMs = if (previousElapsed != null) (elapsedMs - previousElapsed).coerceAtLeast(0L) else 0L
+        val gap = previousElapsed != null && pollDtMs >= RangeConstants.GAP_ELAPSED_MS
+
+        lastElapsedMs = elapsedMs
 
         if (parked || accOff || gap) {
-            lastElapsedMs = elapsedMs
-            lastSpeedKmh = speedKmh
-            if (odometerKm != null) lastOdometerKm = odometerKm
+            syncOdometer(odometerKm, elapsedMs)
             return DistanceTick(deltaKm = 0.0, gap = gap, usedOdometer = false)
         }
 
-        val speed = speedKmh
-        val standing = speed == null || speed < RangeConstants.STANDSTILL_KMH
-        var delta = 0.0
-        var usedOdometer = false
+        if (odometerKm == null) {
+            return DistanceTick(deltaKm = 0.0, gap = false, usedOdometer = false)
+        }
 
         val previousOdo = lastOdometerKm
-        if (odometerKm != null && previousOdo != null) {
-            val odoDelta = (odometerKm - previousOdo).toDouble()
-            val maxDelta = maxOdoDeltaKm(dtMs, speed)
-            if (odoDelta > 0.0 && odoDelta <= maxDelta) {
-                delta = odoDelta
-                usedOdometer = true
-                odometerTrusted = true
-            }
+        val odoDtMs = lastOdometerElapsedMs?.let { (elapsedMs - it).coerceAtLeast(0L) } ?: 0L
+        lastOdometerKm = odometerKm
+        lastOdometerElapsedMs = elapsedMs
+        if (previousOdo == null) {
+            return DistanceTick(deltaKm = 0.0, gap = false, usedOdometer = false)
         }
 
-        if (delta == 0.0 && speed != null && speed >= RangeConstants.STANDSTILL_KMH && previousElapsed != null && dtMs > 0L) {
-            val dtHours = dtMs / 3_600_000.0
-            val previousSpeed = lastSpeedKmh ?: speed
-            delta = ((previousSpeed + speed) / 2.0) * dtHours
+        val odoDelta = (odometerKm - previousOdo).toDouble()
+        if (odoDelta <= 0.0) {
+            return DistanceTick(deltaKm = 0.0, gap = false, usedOdometer = false)
         }
 
-        if (standing) {
-            delta = 0.0
-            usedOdometer = false
+        val maxDelta = maxOdoDeltaKm(odoDtMs, speedKmh)
+        if (odoDelta > maxDelta) {
+            return DistanceTick(deltaKm = 0.0, gap = false, usedOdometer = false)
         }
 
-        lastElapsedMs = elapsedMs
-        lastSpeedKmh = speedKmh
-        if (odometerKm != null) lastOdometerKm = odometerKm
-        if (delta > 0.0) totalKm += delta
-        return DistanceTick(deltaKm = delta, gap = false, usedOdometer = usedOdometer)
+        odometerTrusted = true
+        totalKm += odoDelta
+        return DistanceTick(deltaKm = odoDelta, gap = false, usedOdometer = true)
+    }
+
+    private fun syncOdometer(odometerKm: Float?, elapsedMs: Long) {
+        if (odometerKm == null) return
+        lastOdometerKm = odometerKm
+        lastOdometerElapsedMs = elapsedMs
     }
 
     private fun maxOdoDeltaKm(dtMs: Long, speedKmh: Float?): Double {

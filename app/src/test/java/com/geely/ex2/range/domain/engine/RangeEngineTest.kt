@@ -76,6 +76,17 @@ class RangeEngineTest {
     }
 
     @Test
+    fun standingInDriveStillCountsSocDrop() {
+        val engine = RangeEngine()
+        park(engine, 0)
+        engine.onTick(sample(3_000, 80f, 0f, Gear.DRIVE, odometerKm = 10f))
+        engine.onTick(sample(4_000, 80f, 0f, Gear.DRIVE, odometerKm = 10f))
+        val afterStand = engine.onTick(sample(5_000, 79.5f, 0f, Gear.DRIVE, odometerKm = 10f))
+        assertEquals(0.0, afterStand.period.distanceKm, 0.0)
+        assertEquals(0.5, afterStand.period.socUsedPoints, 0.05)
+    }
+
+    @Test
     fun chargingDoesNotProduceInfiniteRange() {
         val engine = RangeEngine()
         drive(engine, startMs = 0, seconds = 300, startSoc = 50f, kmh = 72f)
@@ -136,7 +147,6 @@ class RangeEngineTest {
             odometerKm = odometerKm,
             gear = gear,
             outsideTempC = 8f,
-            cabinTempC = 22f,
             pepsPowerMode = 1,
             currentCapacityWh = null,
             nominalCapacityWh = 51_000f,

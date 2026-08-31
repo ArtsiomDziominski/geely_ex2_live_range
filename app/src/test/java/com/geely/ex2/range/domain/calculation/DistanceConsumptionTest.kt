@@ -6,12 +6,13 @@ import org.junit.Test
 
 class DistanceAccumulatorTest {
     @Test
-    fun trapezoidUsesRawSpeedWithoutPlusOne() {
+    fun noOdometerNoDistance() {
         val acc = DistanceAccumulator()
         acc.onTick(0, speedKmh = 72f, odometerKm = null, parked = false, accOff = false)
         val tick = acc.onTick(1_000, speedKmh = 72f, odometerKm = null, parked = false, accOff = false)
-        assertEquals(72.0 / 3600.0, tick.deltaKm, 1e-6)
+        assertEquals(0.0, tick.deltaKm, 0.0)
         assertFalse(tick.usedOdometer)
+        assertEquals(0.0, acc.totalKm, 0.0)
     }
 
     @Test
@@ -24,12 +25,43 @@ class DistanceAccumulatorTest {
     }
 
     @Test
+    fun odometerUnchangedAddsNothing() {
+        val acc = DistanceAccumulator()
+        acc.onTick(0, 36f, 10f, parked = false, accOff = false)
+        val tick = acc.onTick(1_000, 36f, 10f, parked = false, accOff = false)
+        assertEquals(0.0, tick.deltaKm, 0.0)
+        assertEquals(0.0, acc.totalKm, 0.0)
+    }
+
+    @Test
     fun odometerPreferredWhenSane() {
         val acc = DistanceAccumulator()
         acc.onTick(0, 36f, 10f, parked = false, accOff = false)
         val tick = acc.onTick(1_000, 36f, 10.01f, parked = false, accOff = false)
         assertEquals(0.01, tick.deltaKm, 1e-6)
         assertEquals(true, tick.usedOdometer)
+    }
+
+    @Test
+    fun missingOdometerDoesNotResetBaseline() {
+        val acc = DistanceAccumulator()
+        acc.onTick(0, 72f, 10f, parked = false, accOff = false)
+        acc.onTick(1_000, 72f, null, parked = false, accOff = false)
+        acc.onTick(2_000, 72f, null, parked = false, accOff = false)
+        val tick = acc.onTick(10_000, 72f, 10.18f, parked = false, accOff = false)
+        assertEquals(0.18, tick.deltaKm, 1e-6)
+        assertEquals(true, tick.usedOdometer)
+        assertEquals(0.18, acc.totalKm, 1e-6)
+    }
+
+    @Test
+    fun implausibleOdometerJumpIsIgnored() {
+        val acc = DistanceAccumulator()
+        acc.onTick(0, 36f, 10f, parked = false, accOff = false)
+        val tick = acc.onTick(1_000, 36f, 12f, parked = false, accOff = false)
+        assertEquals(0.0, tick.deltaKm, 0.0)
+        assertFalse(tick.usedOdometer)
+        assertEquals(0.0, acc.totalKm, 0.0)
     }
 }
 

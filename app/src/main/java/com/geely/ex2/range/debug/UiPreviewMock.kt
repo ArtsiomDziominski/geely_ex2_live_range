@@ -81,7 +81,6 @@ object UiPreviewMock {
             odometerKm = TOTAL_KM.toFloat() + sin(nowMs / 5_000.0).toFloat() * 0.02f,
             gear = gear,
             outsideTempC = 4f + sin(nowMs / 12_000.0).toFloat() * 1.5f,
-            cabinTempC = 21f,
             pepsPowerMode = 1,
             currentCapacityWh = (CAPACITY_KWH * 1000.0 * soc / 100.0).toFloat(),
             nominalCapacityWh = (CAPACITY_KWH * 1000).toFloat(),
@@ -142,11 +141,14 @@ object UiPreviewMock {
             val km = totalKm * t
             val trend = startSoc + (endSoc - startSoc) * t.toFloat()
             val wiggle = sin(km * 0.65).toFloat() * 0.55f
+            val speed = (58f + sin(km * 0.75).toFloat() * 28f + sin(km * 2.3).toFloat() * 12f)
+                .coerceIn(0f, 120f)
             BufferPoint(
                 elapsedRealtimeMs = baseElapsed + (t * 3_600_000).toLong(),
                 wallClockMs = 0L,
                 cumulativeKm = km,
                 socPercent = (trend + wiggle).coerceIn(20f, 100f),
+                speedKmh = speed,
                 chargingLikely = false,
                 gap = false,
             )

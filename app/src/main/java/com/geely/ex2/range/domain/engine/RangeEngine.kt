@@ -24,8 +24,8 @@ data class EngineView(
     val socDeltaPoints: Float?,
     val speedKmh: Float?,
     val outsideTempC: Float?,
-    val cabinTempC: Float?,
     val gear: Gear?,
+    val odometerKm: Float?,
     val parked: Boolean,
     val waitingForDrive: Boolean,
     val charging: Boolean,
@@ -158,8 +158,8 @@ class RangeEngine {
             socDeltaPoints = socDelta,
             speedKmh = tick.speedKmh,
             outsideTempC = tick.outsideTempC,
-            cabinTempC = tick.cabinTempC,
             gear = gearMachine.displayedGear,
+            odometerKm = tick.odometerKm,
             parked = parked,
             waitingForDrive = parked || (trip?.active != true),
             charging = charging,
@@ -203,19 +203,19 @@ class RangeEngine {
     }
 
     private fun accumulatePeriod(tick: TelemetryTick, parked: Boolean, deltaKm: Double) {
-        if (parked || deltaKm <= 0.0) return
-        val soc = tick.socPercent
-        if (soc != null) {
-            val previous = lastDrivingSoc
-            if (previous != null) {
-                val drop = (previous - soc).toDouble()
-                if (drop > 0.0) {
-                    periodSocUsed += drop
-                }
-            }
-            lastDrivingSoc = soc
+        if (parked) return
+        if (deltaKm > 0.0) {
+            periodDistanceKm += deltaKm
         }
-        periodDistanceKm += deltaKm
+        val soc = tick.socPercent ?: return
+        val previous = lastDrivingSoc
+        if (previous != null) {
+            val drop = (previous - soc).toDouble()
+            if (drop > 0.0) {
+                periodSocUsed += drop
+            }
+        }
+        lastDrivingSoc = soc
     }
 
     private fun updateLiveTrip(tick: TelemetryTick) {
@@ -263,6 +263,7 @@ class RangeEngine {
                 wallClockMs = tick.wallClockMs,
                 cumulativeKm = distance.totalKm,
                 socPercent = soc,
+                speedKmh = tick.speedKmh?.takeIf { it.isFinite() && it >= 0f },
                 chargingLikely = charging,
                 gap = gap,
             ),

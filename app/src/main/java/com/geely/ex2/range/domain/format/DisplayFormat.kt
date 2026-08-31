@@ -41,6 +41,11 @@ object DisplayFormat {
         return String.format(Locale.US, "%s%.0f", sign, value)
     }
 
+    fun odometerKm(value: Float?): String? {
+        if (value == null || !value.isFinite()) return null
+        return String.format(Locale.US, "%.1f км", value)
+    }
+
     fun km(value: Double?, digits: Int = 1): String {
         if (value == null || !value.isFinite()) return "—"
         return String.format(Locale.US, "%.${digits}f км", value)
@@ -69,7 +74,7 @@ object DisplayFormat {
     fun pitchDegrees(value: Float?): String {
         if (value == null || !value.isFinite()) return "—"
         val sign = if (value > 0f) "+" else if (value < 0f) "-" else ""
-        return String.format(Locale.US, "%s%.1f", sign, kotlin.math.abs(value))
+        return String.format(Locale.US, "%s%.0f", sign, kotlin.math.abs(value))
     }
 
     fun windowKmLabel(windowKm: Double): String {

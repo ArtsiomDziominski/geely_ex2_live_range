@@ -15,7 +15,6 @@ data class TelemetryTick(
     val odometerKm: Float?,
     val gear: Gear?,
     val outsideTempC: Float?,
-    val cabinTempC: Float?,
     val pepsPowerMode: Int?,
     val currentCapacityWh: Float?,
     val nominalCapacityWh: Float?,
@@ -27,6 +26,7 @@ data class BufferPoint(
     val wallClockMs: Long,
     val cumulativeKm: Double,
     val socPercent: Float,
+    val speedKmh: Float? = null,
     val chargingLikely: Boolean,
     val gap: Boolean,
 )
@@ -96,10 +96,11 @@ data class RangeWindow(
     val chart: List<WindowChartPoint> = emptyList(),
 )
 
-/** SOC sample for a window sparkline; [km] is distance within the window (0…windowKm). */
+/** Sample for a window sparkline; [km] is distance within the window (0…windowKm). */
 data class WindowChartPoint(
     val km: Float,
     val soc: Float,
+    val speedKmh: Float? = null,
 )
 
 data class ConsumptionRates(
@@ -141,5 +142,7 @@ object RangeConstants {
     const val PEPS_ACC_OFF = 0
     const val MAX_RANGE_KM = 800.0
     const val CHECKPOINT_INTERVAL_MS = 5_000L
+    const val SOC_ODOMETER_POLL_MS = 10_000L
+    const val OUTSIDE_TEMP_POLL_MS = 200_000L
     const val WH_PER_KWH = 1000.0
 }
