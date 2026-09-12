@@ -44,6 +44,11 @@ class VehicleTelemetryReader(context: Context) {
     private var cachedOdoInt: CarClient.Probe<Int>? = null
     private var lastOdometerElapsedMs: Long = Long.MIN_VALUE
 
+    private var cachedVehicleRangeRemainingKm: Float? = null
+    private var cachedRangeRemainingFloat: CarClient.Probe<Float>? = null
+    private var cachedRangeRemainingInt: CarClient.Probe<Int>? = null
+    private var lastRangeRemainingElapsedMs: Long = Long.MIN_VALUE
+
     fun connect(): RawTelemetry {
         val debug = StringBuilder()
         val ready = client.ensureConnected(debug)
@@ -93,6 +98,7 @@ class VehicleTelemetryReader(context: Context) {
         val elapsedMs = SystemClock.elapsedRealtime()
         val socBundle = readSoc(elapsedMs)
         val odoBundle = readOdometer(elapsedMs)
+        val rangeRemainingBundle = readRangeRemaining(elapsedMs)
         val gearProbe = client.readInt(VhalIds.PROP_CURRENT_GEAR)
         val (ambient, env) = readOutsideTemperature(elapsedMs)
         val peps = client.readInt(VhalIds.PROP_PEPS_POWER_MODE)
@@ -100,6 +106,7 @@ class VehicleTelemetryReader(context: Context) {
         val soc = cachedSoc
         val speed = liveSpeed
         val odometer = cachedOdometerKm
+        val vehicleRangeRemaining = cachedVehicleRangeRemainingKm
         val gearValue = liveGear ?: gearProbe.value
         val outside = cachedOutsideC
 
@@ -110,6 +117,14 @@ class VehicleTelemetryReader(context: Context) {
         lines += speedCallbackLine(speed)
         lines += odoBundle.odoFloat.line("PERF_ODOMETER float", "опрос раз в 10 с", odometer?.let { String.format(Locale.US, "%.3f км", it) })
         if (odoBundle.odoInt != null) lines += odoBundle.odoInt.line("PERF_ODOMETER int", "fallback")
+        lines += rangeRemainingBundle.float.line(
+            "RANGE_REMAINING float",
+            "опрос раз в 10 с, спека AOSP: метры — сверить на авто",
+            vehicleRangeRemaining?.let { String.format(Locale.US, "%.1f км", it) },
+        )
+        if (rangeRemainingBundle.int != null) {
+            lines += rangeRemainingBundle.int.line("RANGE_REMAINING int", "fallback, как PERF_ODOMETER на этом авто")
+        }
         lines += gearProbe.line("CURRENT_GEAR", "P=4 R=2 N=1 D=8", GearDecoder.fromVhal(gearValue)?.label)
         lines += ambient.line("AC_AMBIENT_TEMP", "опрос раз в 200 с, (raw-80)/2", outside?.let { String.format(Locale.US, "%.1f °C", it) })
         lines += env.line("ENV_OUTSIDE_TEMPERATURE", "float °C fallback")
@@ -126,6 +141,7 @@ class VehicleTelemetryReader(context: Context) {
             pepsPowerMode = peps.value,
             currentCapacityWh = socBundle.currentCap.value,
             nominalCapacityWh = socBundle.nominalCap.value,
+            vehicleRangeRemainingKm = vehicleRangeRemaining,
         )
         return TelemetryRead(
             tick = tick,
@@ -153,6 +169,10 @@ class VehicleTelemetryReader(context: Context) {
         cachedOdoFloat = null
         cachedOdoInt = null
         lastOdometerElapsedMs = Long.MIN_VALUE
+        cachedVehicleRangeRemainingKm = null
+        cachedRangeRemainingFloat = null
+        cachedRangeRemainingInt = null
+        lastRangeRemainingElapsedMs = Long.MIN_VALUE
         client.close()
     }
 
@@ -166,6 +186,11 @@ class VehicleTelemetryReader(context: Context) {
     private data class OdoBundle(
         val odoFloat: CarClient.Probe<Float>,
         val odoInt: CarClient.Probe<Int>?,
+    )
+
+    private data class RangeRemainingBundle(
+        val float: CarClient.Probe<Float>,
+        val int: CarClient.Probe<Int>?,
     )
 
     private fun readSoc(elapsedMs: Long): SocBundle {
@@ -226,6 +251,34 @@ class VehicleTelemetryReader(context: Context) {
     private fun cachedOdoBundle(): OdoBundle? {
         val odoFloat = cachedOdoFloat ?: return null
         return OdoBundle(odoFloat, cachedOdoInt)
+    }
+
+    /**
+     * PROP_RANGE_REMAINING is spec'd FLOAT/meters like PERF_ODOMETER — and on this vehicle
+     * PERF_ODOMETER's HAL ignores that and answers as Int, so try Int the same way here.
+     */
+    private fun readRangeRemaining(elapsedMs: Long): RangeRemainingBundle {
+        val cached = cachedRangeRemainingBundle()
+        if (!pollDue(lastRangeRemainingElapsedMs, elapsedMs, RangeConstants.SOC_ODOMETER_POLL_MS) && cached != null) {
+            return cached
+        }
+        val floatProbe = client.readFloat(VhalIds.PROP_RANGE_REMAINING)
+        val intProbe = if (floatProbe.ok) null else client.readInt(VhalIds.PROP_RANGE_REMAINING)
+        cachedRangeRemainingFloat = floatProbe
+        cachedRangeRemainingInt = intProbe
+        val meters = floatProbe.value ?: intProbe?.value?.toFloat()
+        if (meters != null && meters.isFinite() && meters >= 0f) {
+            cachedVehicleRangeRemainingKm = meters / 1000f
+            lastRangeRemainingElapsedMs = elapsedMs
+        } else if (cachedVehicleRangeRemainingKm != null) {
+            lastRangeRemainingElapsedMs = elapsedMs
+        }
+        return RangeRemainingBundle(floatProbe, intProbe)
+    }
+
+    private fun cachedRangeRemainingBundle(): RangeRemainingBundle? {
+        val floatProbe = cachedRangeRemainingFloat ?: return null
+        return RangeRemainingBundle(floatProbe, cachedRangeRemainingInt)
     }
 
     private fun pollDue(lastElapsedMs: Long, nowElapsedMs: Long, intervalMs: Long): Boolean {

@@ -1,6 +1,7 @@
 package com.geely.ex2.range.ui.help
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,33 +25,42 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.geely.ex2.range.app.RangeUiState
+import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
+import com.geely.ex2.range.domain.model.RawTelemetry
+import com.geely.ex2.range.ui.layout.LocalRangeLayout
+import com.geely.ex2.range.ui.theme.Spacing
 
 @Composable
 fun HelpScreen(
-    state: RangeUiState,
+    usableCapacityKwh: Double?,
+    engine: EngineView?,
+    raw: RawTelemetry,
     onCapacityChange: (Double?) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
+    val layout = LocalRangeLayout.current
     var capacityText by remember {
-        mutableStateOf(state.settings.usableCapacityKwh?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "")
+        mutableStateOf(usableCapacityKwh?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "")
     }
-    LaunchedEffect(state.settings.usableCapacityKwh) {
-        if (capacityText.isBlank() && state.settings.usableCapacityKwh != null) {
-            capacityText = String.format(java.util.Locale.US, "%.1f", state.settings.usableCapacityKwh)
+    LaunchedEffect(usableCapacityKwh) {
+        if (capacityText.isBlank() && usableCapacityKwh != null) {
+            capacityText = String.format(java.util.Locale.US, "%.1f", usableCapacityKwh)
         }
     }
 
     Column(
-        Modifier
+        modifier
             .fillMaxSize()
+            .padding(contentPadding)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 32.dp, vertical = 8.dp),
+            .padding(horizontal = layout.screenPadding, vertical = Spacing.s),
     ) {
-        Text("Справка", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text("Справка", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(4.dp))
         Text(
-            "На улице сейчас: ${DisplayFormat.tempC(state.engine?.outsideTempC)}",
+            "На улице сейчас: ${DisplayFormat.tempC(engine?.outsideTempC)}",
             color = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.height(16.dp))
@@ -85,8 +95,8 @@ fun HelpScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
         )
-        val vehicleC = state.engine?.usableCapacityKwh
-        if (vehicleC != null && state.engine?.capacityIsUserSet != true) {
+        val vehicleC = engine?.usableCapacityKwh
+        if (vehicleC != null && engine?.capacityIsUserSet != true) {
             Text(
                 "Из VHAL INFO_EV_BATTERY_CAPACITY: ${String.format(java.util.Locale.US, "%.1f", vehicleC)} кВт·ч",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -98,13 +108,13 @@ fun HelpScreen(
         Body("Поездка привязана к выезду с парковки. Короткий ложный P (меньше ~2 с) поездку не режет. R после P — та же поездка, не вторая.")
 
         Section("Сырые значения VHAL")
-        if (state.raw.connectError != null) {
-            Text(state.raw.connectError, color = MaterialTheme.colorScheme.error)
+        if (raw.connectError != null) {
+            Text(raw.connectError, color = MaterialTheme.colorScheme.error)
         }
-        if (!state.raw.carReady) {
+        if (!raw.carReady) {
             Text("Car API не подключен — справка читается без него.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        state.raw.lines.forEach { line ->
+        raw.lines.forEach { line ->
             val status = if (line.ok) "OK" else "нет"
             Text(
                 "${line.name} ${line.propertyHex}: $status ${line.rawText}" +

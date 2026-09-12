@@ -62,6 +62,8 @@ class RangeWindowsTest {
         assertTrue(window.chart.size >= 2)
         assertEquals(0f, window.chart.first().km, 0.05f)
         assertEquals(5f, window.chart.last().km, 0.05f)
+        assertEquals(8f, window.chart.first().outsideTempC)
+        assertEquals(54f, window.chart.first().speedKmh)
     }
 
     private fun buffer(vararg kmSoc: Pair<Double, Float>): SampleRingBuffer {
@@ -76,6 +78,8 @@ class RangeWindowsTest {
             wallClockMs = 0L,
             cumulativeKm = km,
             socPercent = soc,
+            speedKmh = 54f,
+            outsideTempC = 8f,
             chargingLikely = charging,
             gap = false,
         )

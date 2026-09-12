@@ -26,6 +26,7 @@ data class EngineView(
     val outsideTempC: Float?,
     val gear: Gear?,
     val odometerKm: Float?,
+    val vehicleRangeRemainingKm: Float?,
     val parked: Boolean,
     val waitingForDrive: Boolean,
     val charging: Boolean,
@@ -37,6 +38,7 @@ data class EngineView(
     val capacityIsUserSet: Boolean,
     val odometerTrusted: Boolean,
     val bufferCoveredKm: Double,
+    val tripDurationMs: Long?,
     val persistPeriod: Boolean,
     val persistBuffer: Boolean,
 )
@@ -58,6 +60,8 @@ class RangeEngine {
     private var vehicleNominalWh: Float? = null
     private var lastCheckpointElapsedMs: Long = Long.MIN_VALUE
     private var tripIncomplete: Boolean = false
+    private var chargeConfirmTicks: Int = 0
+    private var chargeSessionPending: Boolean = false
 
     fun restore(checkpoint: EngineCheckpoint, settings: SettingsSnapshot) {
         userCapacityKwh = settings.usableCapacityKwh
@@ -73,9 +77,9 @@ class RangeEngine {
             parked = checkpoint.trip?.active != true && checkpoint.period.parkSessionId != null,
             driving = checkpoint.trip?.active == true,
         )
-        if (checkpoint.trip?.active == true) {
-            tripIncomplete = true
-        }
+        // Incomplete only after mid-drive restart with real progress — not a fresh trip open at 0 km.
+        tripIncomplete = checkpoint.trip?.active == true &&
+            (checkpoint.trip.lastDistanceKm > 0.01 || checkpoint.buffer.isNotEmpty())
     }
 
     fun resetPeriod(nowMs: Long) {
@@ -118,6 +122,7 @@ class RangeEngine {
         )
 
         val charging = detectCharging(tick, parked)
+        trackChargeSession(parked, charging)
         applyGearEvents(events, tick)
         accumulatePeriod(tick, parked, distanceTick.deltaKm)
         updateLiveTrip(tick)
@@ -160,6 +165,7 @@ class RangeEngine {
             outsideTempC = tick.outsideTempC,
             gear = gearMachine.displayedGear,
             odometerKm = tick.odometerKm,
+            vehicleRangeRemainingKm = tick.vehicleRangeRemainingKm,
             parked = parked,
             waitingForDrive = parked || (trip?.active != true),
             charging = charging,
@@ -171,6 +177,7 @@ class RangeEngine {
             capacityIsUserSet = userCapacityKwh != null,
             odometerTrusted = distance.odometerTrusted,
             bufferCoveredKm = buffer.coveredKm(),
+            tripDurationMs = trip?.let { (tick.wallClockMs - it.startedAtMs).coerceAtLeast(0L) },
             persistPeriod = persistPeriod,
             persistBuffer = persistBuffer,
         )
@@ -187,6 +194,14 @@ class RangeEngine {
                     lastDrivingSoc = null
                 }
                 GearEvent.LeftPark, GearEvent.StartedDriving -> {
+                    // Buffer sat frozen while parked (appendBuffer skips confirmed park), so a
+                    // charge cycle leaves stale pre-charge samples paired with the post-charge
+                    // SOC jump. Drop them so windows start counting fresh km from here.
+                    if (chargeSessionPending) {
+                        buffer.clear()
+                        chargeSessionPending = false
+                    }
+                    chargeConfirmTicks = 0
                     tripIncomplete = false
                     trip = TripSnapshot(
                         active = true,
@@ -264,10 +279,22 @@ class RangeEngine {
                 cumulativeKm = distance.totalKm,
                 socPercent = soc,
                 speedKmh = tick.speedKmh?.takeIf { it.isFinite() && it >= 0f },
+                outsideTempC = tick.outsideTempC?.takeIf { it.isFinite() },
                 chargingLikely = charging,
                 gap = gap,
             ),
         )
+    }
+
+    /** Debounced like [com.geely.ex2.range.domain.tracker.DriveStatsTracker]'s charge session. */
+    private fun trackChargeSession(parked: Boolean, charging: Boolean) {
+        if (!parked) {
+            chargeConfirmTicks = 0
+            return
+        }
+        if (!charging) return
+        if (chargeConfirmTicks < RangeConstants.CHARGE_CONFIRM_TICKS) chargeConfirmTicks++
+        if (chargeConfirmTicks >= RangeConstants.CHARGE_CONFIRM_TICKS) chargeSessionPending = true
     }
 
     private fun detectCharging(tick: TelemetryTick, parked: Boolean): Boolean {

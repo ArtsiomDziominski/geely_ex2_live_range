@@ -2,7 +2,7 @@ package com.geely.ex2.range.debug
 
 import android.os.SystemClock
 import com.geely.ex2.range.data.vhal.TelemetryRead
-import com.geely.ex2.range.domain.model.BufferPoint
+import com.geely.ex2.range.domain.model.DriveStatsSnapshot
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.Gear
 import com.geely.ex2.range.domain.model.PeriodSnapshot
@@ -10,11 +10,15 @@ import com.geely.ex2.range.domain.model.RawPropertyLine
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.TelemetryTick
 import com.geely.ex2.range.domain.model.TripSnapshot
+import kotlin.math.PI
 import kotlin.math.sin
 
 /**
  * TEMP UI preview data for emulator / sideload without VHAL.
- * Delete this file and [AppContainer] hooks when mock is no longer needed.
+ *
+ * Mocks only live inputs the engine needs: SOC %, odometer km, outdoor °C
+ * (plus supporting speed/gear so distance can accumulate). Period, trip,
+ * windows and kWh are computed by [com.geely.ex2.range.domain.engine.RangeEngine].
  */
 object UiPreviewMock {
     /** Flip to false to disable without deleting the file. */
@@ -28,88 +32,167 @@ object UiPreviewMock {
     /** Switch scenario for layout checks. */
     val scenario: Scenario = Scenario.DRIVING
 
-    private const val TOTAL_KM = 142.8
-    private const val TRIP_KM0 = 107.3
-    private const val PERIOD_KM = 218.0
-    private const val PERIOD_SOC = 28.4
     private const val CAPACITY_KWH = 39.4
+    private const val ODO_START_KM = 12_480.0
 
+    /** Empty records — live maxes grow from parked trips if you switch scenarios later. */
+    val driveStats: DriveStatsSnapshot = DriveStatsSnapshot()
+
+    private var sessionStartElapsedMs: Long = Long.MIN_VALUE
+    private var lastTickElapsedMs: Long = Long.MIN_VALUE
+    private var odometerKm: Double = ODO_START_KM
+
+    /**
+     * Cold start: empty period/buffer. For DRIVING, gear is already D and trip is open
+     * so the engine accumulates from the first tick (no “wait for leave P”).
+     */
     fun initialCheckpoint(nowMs: Long): EngineCheckpoint {
-        return EngineCheckpoint(
-            period = PeriodSnapshot(
-                distanceKm = PERIOD_KM,
-                socUsedPoints = PERIOD_SOC,
-                updatedAtMs = nowMs,
-                parkSessionId = if (scenario == Scenario.CHARGING) nowMs else null,
-            ),
-            buffer = buildBuffer(TOTAL_KM),
-            trip = when (scenario) {
-                Scenario.DRIVING -> TripSnapshot(
+        resetSession()
+        val startSoc = mockSocPercent(0.0)
+        return when (scenario) {
+            Scenario.DRIVING -> EngineCheckpoint(
+                period = PeriodSnapshot(
+                    distanceKm = 0.0,
+                    socUsedPoints = 0.0,
+                    updatedAtMs = nowMs,
+                    parkSessionId = null,
+                ),
+                buffer = emptyList(),
+                trip = TripSnapshot(
                     active = true,
-                    soc0 = 71.2f,
-                    km0 = TRIP_KM0,
-                    startedAtMs = nowMs - 3_600_000L,
-                    lastDistanceKm = TOTAL_KM - TRIP_KM0,
-                    lastSocUsedPoints = 7.02,
-                )
-                Scenario.CHARGING -> null
-            },
-            totalKm = TOTAL_KM,
-            lastDrivingSoc = if (scenario == Scenario.CHARGING) null else currentSoc(nowMs),
-        )
+                    soc0 = startSoc,
+                    km0 = 0.0,
+                    startedAtMs = nowMs,
+                    lastDistanceKm = 0.0,
+                    lastSocUsedPoints = 0.0,
+                ),
+                totalKm = 0.0,
+                lastDrivingSoc = startSoc,
+            )
+            Scenario.CHARGING -> EngineCheckpoint(
+                period = PeriodSnapshot(
+                    distanceKm = 0.0,
+                    socUsedPoints = 0.0,
+                    updatedAtMs = nowMs,
+                    parkSessionId = nowMs,
+                ),
+                buffer = emptyList(),
+                trip = null,
+                totalKm = 0.0,
+                lastDrivingSoc = null,
+            )
+        }
     }
 
-    fun pitchDegrees(nowMs: Long): Float {
-        return 3.2f + sin(nowMs / 3_500.0).toFloat() * 2.8f
+    fun pitchDegrees(nowMs: Long): Float? {
+        // Inclination is not mocked — only SOC / odometer / outdoor °C (and speed/gear support).
+        return null
     }
 
     fun read(nowMs: Long): TelemetryRead {
-        val soc = currentSoc(nowMs)
-        val speed = when (scenario) {
-            Scenario.DRIVING -> 52f + sin(nowMs / 2_800.0).toFloat() * 5f
-            Scenario.CHARGING -> 0f
+        val elapsed = SystemClock.elapsedRealtime()
+        ensureSession(elapsed)
+        val dtMs = if (lastTickElapsedMs == Long.MIN_VALUE) {
+            0L
+        } else {
+            (elapsed - lastTickElapsedMs).coerceAtLeast(0L)
         }
+        lastTickElapsedMs = elapsed
+
+        val t = sessionSeconds(elapsed)
+        val speed = mockSpeedKmh(t)
+        if (scenario == Scenario.DRIVING && dtMs > 0L) {
+            odometerKm += speed * (dtMs / 3_600_000.0)
+        }
+
+        val soc = mockSocPercent(t)
+        val temp = mockOutsideTempC(t)
         val gear = when (scenario) {
             Scenario.DRIVING -> Gear.DRIVE
             Scenario.CHARGING -> Gear.PARK
         }
         val tick = TelemetryTick(
-            elapsedRealtimeMs = SystemClock.elapsedRealtime(),
+            elapsedRealtimeMs = elapsed,
             wallClockMs = nowMs,
             socPercent = soc,
-            speedKmh = speed,
-            odometerKm = TOTAL_KM.toFloat() + sin(nowMs / 5_000.0).toFloat() * 0.02f,
+            speedKmh = if (scenario == Scenario.DRIVING) speed else 0f,
+            odometerKm = odometerKm.toFloat(),
             gear = gear,
-            outsideTempC = 4f + sin(nowMs / 12_000.0).toFloat() * 1.5f,
+            outsideTempC = temp,
             pepsPowerMode = 1,
             currentCapacityWh = (CAPACITY_KWH * 1000.0 * soc / 100.0).toFloat(),
             nominalCapacityWh = (CAPACITY_KWH * 1000).toFloat(),
             chargingLikelyHint = scenario == Scenario.CHARGING,
+            vehicleRangeRemainingKm = (soc * 3.5).toFloat(),
         )
-        return TelemetryRead(tick = tick, raw = rawTelemetry(soc, speed, gear))
+        return TelemetryRead(tick = tick, raw = rawTelemetry(soc, speed, gear, temp))
     }
 
-    private fun currentSoc(nowMs: Long): Float {
+    private fun resetSession() {
+        sessionStartElapsedMs = Long.MIN_VALUE
+        lastTickElapsedMs = Long.MIN_VALUE
+        odometerKm = ODO_START_KM
+    }
+
+    private fun ensureSession(elapsedMs: Long) {
+        if (sessionStartElapsedMs == Long.MIN_VALUE) {
+            sessionStartElapsedMs = elapsedMs
+            lastTickElapsedMs = elapsedMs
+            odometerKm = ODO_START_KM
+        }
+    }
+
+    private fun sessionSeconds(elapsedMs: Long = SystemClock.elapsedRealtime()): Double {
+        ensureSession(elapsedMs)
+        return (elapsedMs - sessionStartElapsedMs).coerceAtLeast(0L) / 1000.0
+    }
+
+    /** Smooth speed 25…115 km/h — also drives odometer growth. */
+    private fun mockSpeedKmh(tSec: Double): Float {
+        val wave = 70.0 + 35.0 * sin(tSec / 40.0) + 10.0 * sin(tSec / 13.0)
+        return wave.toFloat().coerceIn(25f, 115f)
+    }
+
+    /**
+     * Smooth SOC across a wide band (~18…95 %).
+     * Driving: slow drain + long sine. Charging: slow rise + sine.
+     */
+    private fun mockSocPercent(tSec: Double): Float {
         return when (scenario) {
             Scenario.DRIVING -> {
-                val base = 64.18f - ((nowMs % 120_000L) / 120_000f) * 0.35f
-                base + sin(nowMs / 4_000.0).toFloat() * 0.08f
+                val cycle = 22.0 * 60.0
+                val phase = (tSec % cycle) / cycle
+                val drain = 92.0 - phase * 70.0
+                val wobble = sin(tSec / 55.0) * 4.5 + sin(tSec / 19.0) * 1.8
+                (drain + wobble).toFloat().coerceIn(18f, 95f)
             }
             Scenario.CHARGING -> {
-                71.2f + ((nowMs % 180_000L) / 180_000f) * 0.45f
+                val cycle = 18.0 * 60.0
+                val phase = (tSec % cycle) / cycle
+                val rise = 22.0 + phase * 72.0
+                val wobble = sin(tSec / 48.0) * 2.0
+                (rise + wobble).toFloat().coerceIn(18f, 98f)
             }
         }
     }
 
-    private fun rawTelemetry(soc: Float, speed: Float, gear: Gear): RawTelemetry {
+    /** Smooth outdoor temperature ≈ −18…+36 °C. */
+    private fun mockOutsideTempC(tSec: Double): Float {
+        val base = 8.0 + 22.0 * sin(2.0 * PI * tSec / (16.0 * 60.0))
+        val detail = 4.0 * sin(tSec / 37.0) + 1.5 * sin(tSec / 9.0)
+        return (base + detail).toFloat().coerceIn(-18f, 36f)
+    }
+
+    private fun rawTelemetry(soc: Float, speed: Float, gear: Gear, temp: Float): RawTelemetry {
         return RawTelemetry(
             carReady = true,
             connectError = null,
             lines = listOf(
-                line("OEM SOC", "0x2140A6ED", ok = true, raw = "float", decoded = "${soc}%"),
-                line("PERF_VEHICLE_SPEED", "0x11600207", ok = true, raw = "m/s×3.6", decoded = "${speed.toInt()} km/h"),
+                line("OEM SOC", "0x2140A6ED", ok = true, raw = "mock", decoded = String.format("%.2f %%", soc)),
+                line("PERF_VEHICLE_SPEED", "0x11600207", ok = true, raw = "mock", decoded = "${speed.toInt()} km/h"),
+                line("PERF_ODOMETER", "0x11600204", ok = true, raw = "mock", decoded = String.format("%.3f км", odometerKm)),
                 line("CURRENT_GEAR", "0x11400401", ok = true, raw = gear.vhalValue.toString(), decoded = gear.label),
-                line("OUTSIDE_TEMP", "0x2140A377", ok = true, raw = "raw", decoded = "+4 °C"),
+                line("OUTSIDE_TEMP", "0x2140A377", ok = true, raw = "mock", decoded = String.format("%+.1f °C", temp)),
                 line("INFO_EV_BATTERY_CAPACITY", "0x11600106", ok = true, raw = "Wh", decoded = "$CAPACITY_KWH kWh"),
             ),
         )
@@ -129,29 +212,5 @@ object UiPreviewMock {
             rawText = raw,
             decodedText = decoded,
         )
-    }
-
-    private fun buildBuffer(totalKm: Double): List<BufferPoint> {
-        val startSoc = 79.5f
-        val endSoc = 64.18f
-        val points = 48
-        val baseElapsed = SystemClock.elapsedRealtime() - 3_600_000L
-        return List(points) { index ->
-            val t = index.toDouble() / (points - 1)
-            val km = totalKm * t
-            val trend = startSoc + (endSoc - startSoc) * t.toFloat()
-            val wiggle = sin(km * 0.65).toFloat() * 0.55f
-            val speed = (58f + sin(km * 0.75).toFloat() * 28f + sin(km * 2.3).toFloat() * 12f)
-                .coerceIn(0f, 120f)
-            BufferPoint(
-                elapsedRealtimeMs = baseElapsed + (t * 3_600_000).toLong(),
-                wallClockMs = 0L,
-                cumulativeKm = km,
-                socPercent = (trend + wiggle).coerceIn(20f, 100f),
-                speedKmh = speed,
-                chargingLikely = false,
-                gap = false,
-            )
-        }
     }
 }

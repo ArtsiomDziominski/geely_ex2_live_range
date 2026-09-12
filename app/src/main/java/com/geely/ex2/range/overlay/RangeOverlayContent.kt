@@ -22,11 +22,13 @@ import androidx.compose.ui.unit.sp
 import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.RangeWindow
 import com.geely.ex2.range.domain.model.WindowStatus
+import com.geely.ex2.range.ui.theme.RangeThemeColors
 
 @Composable
 fun RangeOverlayContent(
     windows: List<RangeWindow>,
     charging: Boolean,
+    vehicleRangeRemainingKm: Float?,
     onDrag: (dx: Float, dy: Float) -> Unit,
 ) {
     Row(
@@ -54,7 +56,7 @@ fun RangeOverlayContent(
                     color = MaterialTheme.colorScheme.outlineVariant,
                 )
             }
-            OverlayWindowColumn(window, charging)
+            OverlayWindowColumn(window, charging, vehicleRangeRemainingKm)
         }
     }
 }
@@ -63,7 +65,14 @@ fun RangeOverlayContent(
 private fun OverlayWindowColumn(
     window: RangeWindow,
     charging: Boolean,
+    vehicleRangeRemainingKm: Float?,
 ) {
+    val extra = RangeThemeColors.extra
+    val deltaPercent = if (!charging && window.status == WindowStatus.READY) {
+        DisplayFormat.rangeDeltaPercent(window.rangeTo0Km, vehicleRangeRemainingKm)
+    } else {
+        null
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -81,6 +90,14 @@ private fun OverlayWindowColumn(
             fontSize = 48.sp,
             fontWeight = FontWeight.Bold,
         )
+        DisplayFormat.rangeDeltaLabel(deltaPercent)?.let { label ->
+            Text(
+                label,
+                color = if ((deltaPercent ?: 0.0) < 0.0) extra.lowSoc else extra.charging,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 

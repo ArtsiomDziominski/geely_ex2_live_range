@@ -65,17 +65,23 @@ class DistanceAccumulator {
         }
 
         val previousOdo = lastOdometerKm
-        val odoDtMs = lastOdometerElapsedMs?.let { (elapsedMs - it).coerceAtLeast(0L) } ?: 0L
-        lastOdometerKm = odometerKm
-        lastOdometerElapsedMs = elapsedMs
         if (previousOdo == null) {
+            lastOdometerKm = odometerKm
+            lastOdometerElapsedMs = elapsedMs
             return DistanceTick(deltaKm = 0.0, gap = false, usedOdometer = false)
         }
 
         val odoDelta = (odometerKm - previousOdo).toDouble()
+        // Cached odometer (poll every 10 s) repeats the same value on 1 Hz ticks.
+        // Do not refresh lastOdometerElapsedMs here — otherwise a real 10 s jump is
+        // judged against ~1 s and rejected as implausible.
         if (odoDelta <= 0.0) {
             return DistanceTick(deltaKm = 0.0, gap = false, usedOdometer = false)
         }
+
+        val odoDtMs = lastOdometerElapsedMs?.let { (elapsedMs - it).coerceAtLeast(0L) } ?: 0L
+        lastOdometerKm = odometerKm
+        lastOdometerElapsedMs = elapsedMs
 
         val maxDelta = maxOdoDeltaKm(odoDtMs, speedKmh)
         if (odoDelta > maxDelta) {

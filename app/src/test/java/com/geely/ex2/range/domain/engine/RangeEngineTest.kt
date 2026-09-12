@@ -108,6 +108,30 @@ class RangeEngineTest {
         assertEquals(64.3f, point.socPercent, 0.0f)
     }
 
+    @Test
+    fun chargeSessionResetsWindowBufferOnLeavePark() {
+        val engine = RangeEngine()
+        drive(engine, startMs = 0, seconds = 400, startSoc = 80f, kmh = 90f)
+        park(engine, startMs = 400_000)
+
+        var t = 405_000L
+        var soc = 60f
+        repeat(4) {
+            engine.onTick(sample(t, soc, 0f, Gear.PARK, charging = true))
+            soc += 5f
+            t += 1_000L
+        }
+
+        engine.onTick(sample(t, soc, 0f, Gear.DRIVE, odometerKm = 10f))
+        t += 1_000L
+        val afterDrive = engine.onTick(sample(t, soc - 0.2f, 20f, Gear.DRIVE, odometerKm = 10.05f))
+
+        assertTrue(afterDrive.windows.all { it.status == WindowStatus.NEED_MORE_KM })
+        afterDrive.windows.forEach { window ->
+            assertEquals(window.windowKm, window.remainingToFillKm!!, 0.05)
+        }
+    }
+
     private fun drive(
         engine: RangeEngine,
         startMs: Long,

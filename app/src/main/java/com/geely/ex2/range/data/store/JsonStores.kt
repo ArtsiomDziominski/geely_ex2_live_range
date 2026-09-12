@@ -1,10 +1,11 @@
 package com.geely.ex2.range.data.store
 
+import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.BufferPoint
+import com.geely.ex2.range.domain.model.DriveStatsSnapshot
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RangeConstants
-import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.domain.model.TripSnapshot
 import org.json.JSONArray
@@ -15,6 +16,8 @@ class JsonStores(private val dir: File) {
     private val periodFile = File(dir, "period.json")
     private val settingsFile = File(dir, "settings.json")
     private val bufferFile = File(dir, "buffer-checkpoint.json")
+    private val driveStatsFile = File(dir, "drive-stats.json")
+    private var lastDriveStatsText: String? = null
 
     fun loadSettings(): SettingsSnapshot {
         val json = readObject(settingsFile) ?: return SettingsSnapshot()
@@ -104,6 +107,11 @@ class JsonStores(private val dir: File) {
                         } else {
                             null
                         },
+                        outsideTempC = if (item.has("temp") && !item.isNull("temp")) {
+                            item.optDouble("temp").toFloat().takeIf { it.isFinite() }
+                        } else {
+                            null
+                        },
                         chargingLikely = item.optBoolean("charging"),
                         gap = item.optBoolean("gap"),
                     ),
@@ -133,6 +141,7 @@ class JsonStores(private val dir: File) {
                     .put("km", point.cumulativeKm)
                     .put("soc", point.socPercent.toDouble())
                     .put("speed", point.speedKmh?.toDouble() ?: JSONObject.NULL)
+                    .put("temp", point.outsideTempC?.toDouble() ?: JSONObject.NULL)
                     .put("charging", point.chargingLikely)
                     .put("gap", point.gap),
             )
@@ -156,6 +165,33 @@ class JsonStores(private val dir: File) {
             .put("trip", trip)
             .put("points", points)
         atomicWrite(bufferFile, json.toString())
+    }
+
+    fun loadDriveStats(): DriveStatsSnapshot {
+        val json = readObject(driveStatsFile) ?: return DriveStatsSnapshot()
+        lastDriveStatsText = json.toString()
+        return DriveStatsSnapshot(
+            maxTripKm = finiteKm(json.optDouble("maxTripKm", 0.0)),
+            maxChargeCycleKm = finiteKm(json.optDouble("maxChargeCycleKm", 0.0)),
+            openChargeCycleKm = finiteKm(json.optDouble("openChargeCycleKm", 0.0)),
+            chargingSession = json.optBoolean("chargingSession", false),
+        )
+    }
+
+    fun saveDriveStats(snapshot: DriveStatsSnapshot) {
+        val json = JSONObject()
+            .put("maxTripKm", snapshot.maxTripKm)
+            .put("maxChargeCycleKm", snapshot.maxChargeCycleKm)
+            .put("openChargeCycleKm", snapshot.openChargeCycleKm)
+            .put("chargingSession", snapshot.chargingSession)
+        val text = json.toString()
+        if (text == lastDriveStatsText) return
+        atomicWrite(driveStatsFile, text)
+        lastDriveStatsText = text
+    }
+
+    private fun finiteKm(value: Double): Double {
+        return if (value.isFinite() && value > 0.0) value else 0.0
     }
 
     private fun readObject(file: File): JSONObject? {

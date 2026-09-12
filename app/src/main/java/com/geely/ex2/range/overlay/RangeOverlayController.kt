@@ -36,6 +36,7 @@ class RangeOverlayController(
 
     private var windows by mutableStateOf<List<RangeWindow>>(emptyList())
     private var charging by mutableStateOf(false)
+    private var vehicleRangeRemainingKm by mutableStateOf<Float?>(null)
     private var appThemeMode by mutableStateOf(AppThemeMode.SYSTEM)
 
     fun canDraw(): Boolean {
@@ -72,6 +73,7 @@ class RangeOverlayController(
                         RangeOverlayContent(
                             windows = windows,
                             charging = charging,
+                            vehicleRangeRemainingKm = vehicleRangeRemainingKm,
                             onDrag = ::moveBy,
                         )
                     }
@@ -92,9 +94,10 @@ class RangeOverlayController(
         }
     }
 
-    fun update(windows: List<RangeWindow>, charging: Boolean) {
+    fun update(windows: List<RangeWindow>, charging: Boolean, vehicleRangeRemainingKm: Float?) {
         this.windows = windows
         this.charging = charging
+        this.vehicleRangeRemainingKm = vehicleRangeRemainingKm
     }
 
     fun release() {

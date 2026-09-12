@@ -16,6 +16,7 @@ import com.geely.ex2.range.ui.MainActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 class RangeTrackingService : LifecycleService() {
     override fun onCreate() {
@@ -34,7 +35,7 @@ class RangeTrackingService : LifecycleService() {
         val container = (application as RangeApplication).container
         container.attachOverlay()
         container.startReader()
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.Default) {
             while (isActive) {
                 container.poll()
                 delay(1_000)

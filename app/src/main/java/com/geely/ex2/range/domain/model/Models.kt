@@ -19,6 +19,8 @@ data class TelemetryTick(
     val currentCapacityWh: Float?,
     val nominalCapacityWh: Float?,
     val chargingLikelyHint: Boolean = false,
+    /** Vehicle's own remaining-range estimate (RANGE_REMAINING), км — справочно, окна 5/15/30 не подменяет. */
+    val vehicleRangeRemainingKm: Float? = null,
 )
 
 data class BufferPoint(
@@ -27,6 +29,7 @@ data class BufferPoint(
     val cumulativeKm: Double,
     val socPercent: Float,
     val speedKmh: Float? = null,
+    val outsideTempC: Float? = null,
     val chargingLikely: Boolean,
     val gap: Boolean,
 )
@@ -101,6 +104,7 @@ data class WindowChartPoint(
     val km: Float,
     val soc: Float,
     val speedKmh: Float? = null,
+    val outsideTempC: Float? = null,
 )
 
 data class ConsumptionRates(
@@ -124,6 +128,22 @@ data class RawTelemetry(
     val lines: List<RawPropertyLine>,
 )
 
+/** Persisted drive records — tiny JSON, written only on park / charge edge. */
+data class DriveStatsSnapshot(
+    val maxTripKm: Double = 0.0,
+    val maxChargeCycleKm: Double = 0.0,
+    val openChargeCycleKm: Double = 0.0,
+    val chargingSession: Boolean = false,
+)
+
+/** Live + records for Stats UI (records include live trip if it already beats them). */
+data class DriveStatsView(
+    val maxTripKm: Double = 0.0,
+    val maxChargeCycleKm: Double = 0.0,
+    val currentTripKm: Double = 0.0,
+    val currentChargeCycleKm: Double = 0.0,
+)
+
 object RangeConstants {
     const val WINDOW_KM_5 = 5.0
     const val WINDOW_KM_15 = 15.0
@@ -145,4 +165,11 @@ object RangeConstants {
     const val SOC_ODOMETER_POLL_MS = 10_000L
     const val OUTSIDE_TEMP_POLL_MS = 200_000L
     const val WH_PER_KWH = 1000.0
+    /** Trips shorter than this are noise (parking shuffle) and do not update records. */
+    const val MIN_COUNTED_TRIP_KM = 0.1
+    /** SOC-up ticks while parked before a charge cycle is closed (flag is intermittent). */
+    const val CHARGE_CONFIRM_TICKS = 3
+    /** Geely EX2 HU reference canvas for UI scale (1920×1040 under typical chrome). */
+    const val HU_CONTENT_WIDTH_PX = 1920
+    const val HU_CONTENT_HEIGHT_PX = 1040
 }

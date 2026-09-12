@@ -63,6 +63,21 @@ class DistanceAccumulatorTest {
         assertFalse(tick.usedOdometer)
         assertEquals(0.0, acc.totalKm, 0.0)
     }
+
+    @Test
+    fun cachedOdometerJumpAfterTenSecondsIsAccepted() {
+        val acc = DistanceAccumulator()
+        acc.onTick(0, 50f, 100f, parked = false, accOff = false)
+        for (second in 1..9) {
+            val tick = acc.onTick(second * 1_000L, 50f, 100f, parked = false, accOff = false)
+            assertEquals(0.0, tick.deltaKm, 0.0)
+        }
+        // ~0.14 km in 10 s at 50 km/h — matches VHAL cache poll every 10 s
+        val tick = acc.onTick(10_000, 50f, 100.14f, parked = false, accOff = false)
+        assertEquals(0.14, tick.deltaKm, 1e-6)
+        assertEquals(true, tick.usedOdometer)
+        assertEquals(0.14, acc.totalKm, 1e-6)
+    }
 }
 
 class ConsumptionTest {

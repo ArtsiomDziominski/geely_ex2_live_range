@@ -42,12 +42,12 @@ object RangeWindows {
                 windowKm = windowKm,
                 status = WindowStatus.NEED_MORE_KM,
                 remainingToFillKm = (windowKm - covered).coerceAtLeast(0.0),
-                chart = chartFromBuffer(buffer.snapshot(), first.cumulativeKm, windowKm),
+                chart = mapChart(buffer.snapshot(), first.cumulativeKm, windowKm),
             )
         }
         val targetKm = last.cumulativeKm - windowKm
         val slice = buffer.sliceFrom(targetKm)
-        val chart = chartFromSlice(slice, targetKm, windowKm)
+        val chart = mapChart(slice, targetKm, windowKm)
         if (slice.any { it.chargingLikely }) {
             return RangeWindow(windowKm, WindowStatus.CHARGING, chart = chart)
         }
@@ -100,33 +100,24 @@ object RangeWindows {
         )
     }
 
-    private fun chartFromSlice(
-        slice: List<BufferPoint>,
-        startKm: Double,
-        windowKm: Double,
-    ): List<WindowChartPoint> {
-        if (slice.isEmpty()) return emptyList()
-        val mapped = slice.map { point ->
-            WindowChartPoint(
-                km = ((point.cumulativeKm - startKm).coerceIn(0.0, windowKm)).toFloat(),
-                soc = point.socPercent,
-                speedKmh = point.speedKmh,
-            )
-        }
-        return downsample(mapped)
-    }
-
-    private fun chartFromBuffer(
+    private fun mapChart(
         points: List<BufferPoint>,
         startKm: Double,
         windowKm: Double,
     ): List<WindowChartPoint> {
         if (points.isEmpty()) return emptyList()
+        var lastSpeed: Float? = null
+        var lastTemp: Float? = null
         val mapped = points.map { point ->
+            val speed = point.speedKmh?.takeIf { it.isFinite() && it >= 0f } ?: lastSpeed
+            val temp = point.outsideTempC?.takeIf { it.isFinite() } ?: lastTemp
+            if (speed != null) lastSpeed = speed
+            if (temp != null) lastTemp = temp
             WindowChartPoint(
                 km = ((point.cumulativeKm - startKm).coerceIn(0.0, windowKm)).toFloat(),
                 soc = point.socPercent,
-                speedKmh = point.speedKmh,
+                speedKmh = speed,
+                outsideTempC = temp,
             )
         }
         return downsample(mapped)

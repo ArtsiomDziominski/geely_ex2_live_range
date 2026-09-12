@@ -10,6 +10,8 @@ object VhalIds {
     const val PROP_INFO_EV_BATTERY_CAPACITY = 0x11600106
     const val PROP_PERF_VEHICLE_SPEED = 0x11600207
     const val PROP_PERF_ODOMETER = 0x11600204
+    /** AOSP spec: FLOAT, GLOBAL, unit METER. Not km like PERF_ODOMETER — сверить на авто, см. «Справка». */
+    const val PROP_RANGE_REMAINING = 0x11600308
     const val PROP_CURRENT_GEAR = 0x11400401
     const val PROP_GEAR_SELECTION = 0x11400400
     const val PROP_AC_AMBIENT_TEMP = 0x2140A377

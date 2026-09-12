@@ -2,17 +2,102 @@ package com.geely.ex2.range.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.geely.ex2.range.app.RangeApplication
+import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.model.AppThemeMode
+import com.geely.ex2.range.domain.model.DriveStatsView
+import com.geely.ex2.range.domain.model.RawTelemetry
+import com.geely.ex2.range.domain.model.SettingsSnapshot
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+data class DashboardUiState(
+    val engine: EngineView? = null,
+    val pitchDegrees: Float? = null,
+    /** Текст ошибки чтения телеметрии — нужен UI для состояния ошибки. */
+    val connectError: String? = null,
+    val carReady: Boolean = false,
+)
+
+data class StatsUiState(
+    val engine: EngineView? = null,
+    val driveStats: DriveStatsView = DriveStatsView(),
+)
+
+data class HelpUiState(
+    val usableCapacityKwh: Double? = null,
+    val engine: EngineView? = null,
+    val raw: RawTelemetry = RawTelemetry(carReady = false, connectError = null, lines = emptyList()),
+)
 
 class RangeViewModel(application: Application) : AndroidViewModel(application) {
     private val container = (application as RangeApplication).container
     val uiState = container.uiState
 
+    val settings: StateFlow<SettingsSnapshot> = uiState
+        .map { it.settings }
+        .distinctUntilChanged()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = uiState.value.settings,
+        )
+
+    val dashboard: StateFlow<DashboardUiState> = uiState
+        .map {
+            DashboardUiState(
+                engine = it.engine,
+                pitchDegrees = it.pitchDegrees,
+                connectError = it.raw.connectError,
+                carReady = it.raw.carReady,
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DashboardUiState(),
+        )
+
+    val stats: StateFlow<StatsUiState> = uiState
+        .map { StatsUiState(engine = it.engine, driveStats = it.driveStats) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StatsUiState(),
+        )
+
+    val help: StateFlow<HelpUiState> = uiState
+        .map {
+            HelpUiState(
+                usableCapacityKwh = it.settings.usableCapacityKwh,
+                engine = it.engine,
+                raw = it.raw,
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = HelpUiState(),
+        )
+
     private var pendingOverlayEnable = false
 
     fun resetPeriod() {
         container.resetPeriod()
+    }
+
+    /** Повторный опрос телеметрии по кнопке «Повторить» в состоянии ошибки. */
+    fun retry() {
+        viewModelScope.launch(Dispatchers.Default) {
+            container.poll()
+        }
     }
 
     fun setUserCapacityKwh(value: Double?) {

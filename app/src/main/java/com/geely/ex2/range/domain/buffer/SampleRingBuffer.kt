@@ -18,6 +18,10 @@ class SampleRingBuffer(
 
     fun isEmpty(): Boolean = points.isEmpty()
 
+    fun clear() {
+        points.clear()
+    }
+
     fun last(): BufferPoint? = points.lastOrNull()
 
     fun coveredKm(): Double {
