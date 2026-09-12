@@ -1,6 +1,7 @@
 package com.geely.ex2.range.overlay
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,7 +32,9 @@ fun RangeOverlayContent(
     charging: Boolean,
     vehicleRangeRemainingKm: Float?,
     onDrag: (dx: Float, dy: Float) -> Unit,
+    onClick: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(24.dp)
     Row(
         modifier = Modifier
             .wrapContentSize(unbounded = true)
@@ -40,10 +44,13 @@ fun RangeOverlayContent(
                     onDrag(dragAmount.x, dragAmount.y)
                 }
             }
+            .clip(shape)
             .background(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                shape = RoundedCornerShape(24.dp),
+                shape = shape,
             )
+            // Короткий тап — открыть приложение; долгое нажатие с перетаскиванием (выше) двигает виджет.
+            .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

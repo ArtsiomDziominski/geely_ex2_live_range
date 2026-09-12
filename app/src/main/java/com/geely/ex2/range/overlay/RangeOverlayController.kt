@@ -25,6 +25,7 @@ import kotlin.math.roundToInt
 class RangeOverlayController(
     private val context: Context,
     private val onPositionChanged: (x: Int, y: Int) -> Unit,
+    private val onOpenApp: () -> Unit,
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var composeView: ComposeView? = null
@@ -75,6 +76,7 @@ class RangeOverlayController(
                             charging = charging,
                             vehicleRangeRemainingKm = vehicleRangeRemainingKm,
                             onDrag = ::moveBy,
+                            onClick = onOpenApp,
                         )
                     }
                 }

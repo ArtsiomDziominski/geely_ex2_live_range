@@ -211,7 +211,12 @@ object RangeConstants {
     const val GAP_ELAPSED_MS = 30_000L
     const val PEPS_ACC_OFF = 0
     const val MAX_RANGE_KM = 800.0
-    const val CHECKPOINT_INTERVAL_MS = 5_000L
+    /**
+     * Как часто пересериализуем и пишем на диск весь буфер окон (до ~35 км истории, тысячи
+     * точек на медленной езде). Больше интервал — меньше нагрузка на CPU/диск во время движения
+     * ценой чуть большей потери буфера при аварийном перезапуске.
+     */
+    const val CHECKPOINT_INTERVAL_MS = 15_000L
     const val SOC_ODOMETER_POLL_MS = 10_000L
     const val OUTSIDE_TEMP_POLL_MS = 200_000L
     const val WH_PER_KWH = 1000.0

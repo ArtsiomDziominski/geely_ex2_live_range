@@ -97,8 +97,12 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
 
     private var pendingOverlayEnable = false
 
+    /** resetPeriod()/setUserCapacityKwh() заканчиваются синхронным poll() — блокирующие чтения
+     *  VHAL через Binder, поэтому уходим с главного потока, как и в retry(). */
     fun resetPeriod() {
-        container.resetPeriod()
+        viewModelScope.launch(Dispatchers.Default) {
+            container.resetPeriod()
+        }
     }
 
     /** Повторный опрос телеметрии по кнопке «Повторить» в состоянии ошибки. */
@@ -109,7 +113,9 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setUserCapacityKwh(value: Double?) {
-        container.setUserCapacityKwh(value)
+        viewModelScope.launch(Dispatchers.Default) {
+            container.setUserCapacityKwh(value)
+        }
     }
 
     fun canDrawOverlays(): Boolean = container.canDrawOverlays()

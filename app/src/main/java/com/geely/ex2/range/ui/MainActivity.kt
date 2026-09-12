@@ -9,6 +9,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.geely.ex2.range.service.RangeTrackingService
 
@@ -19,12 +22,24 @@ class MainActivity : AppCompatActivity() {
         startTracking()
     }
 
+    // Растёт при каждом запросе «открыть на главной» через уже запущенный экземпляр
+    // (см. onNewIntent) — RangeApp следит за значением и переключает вкладку на Дашборд.
+    private var navigateHomeSignal by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationAndStart()
         setContent {
-            RangeApp()
+            RangeApp(navigateHomeSignal = navigateHomeSignal)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_DASHBOARD, false)) {
+            navigateHomeSignal++
         }
     }
 
@@ -44,5 +59,9 @@ class MainActivity : AppCompatActivity() {
             this,
             Intent(this, RangeTrackingService::class.java),
         )
+    }
+
+    companion object {
+        const val EXTRA_OPEN_DASHBOARD = "com.geely.ex2.range.OPEN_DASHBOARD"
     }
 }

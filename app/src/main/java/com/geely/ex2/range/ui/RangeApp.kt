@@ -40,6 +40,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +94,7 @@ private val Destinations = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RangeApp(viewModel: RangeViewModel = viewModel()) {
+fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 0) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val route = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -135,6 +136,14 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
             popUpTo(navController.graph.findStartDestination().id) {
                 saveState = true
             }
+        }
+    }
+
+    // Виджет поверх экрана открывает уже запущенное приложение через onNewIntent —
+    // сигнал растёт при каждом таком запросе, и мы переключаемся на главную вкладку.
+    LaunchedEffect(navigateHomeSignal) {
+        if (navigateHomeSignal > 0) {
+            navigateTab(ROUTE_DASHBOARD)
         }
     }
 
@@ -206,11 +215,9 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
                                     icon = {
                                         Icon(
                                             if (selected) destination.selectedIcon else destination.icon,
-                                            contentDescription = null,
+                                            contentDescription = destination.label,
                                         )
                                     },
-                                    label = { Text(destination.label) },
-                                    alwaysShowLabel = true,
                                 )
                             }
                         }
@@ -233,11 +240,9 @@ fun RangeApp(viewModel: RangeViewModel = viewModel()) {
                                     icon = {
                                         Icon(
                                             if (selected) destination.selectedIcon else destination.icon,
-                                            contentDescription = null,
+                                            contentDescription = destination.label,
                                         )
                                     },
-                                    label = { Text(destination.label) },
-                                    alwaysShowLabel = true,
                                 )
                             }
                         }

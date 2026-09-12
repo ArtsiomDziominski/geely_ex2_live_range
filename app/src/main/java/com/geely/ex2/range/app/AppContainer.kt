@@ -1,6 +1,7 @@
 package com.geely.ex2.range.app
 
 import android.content.Context
+import android.content.Intent
 import com.geely.ex2.range.data.store.JsonStores
 import com.geely.ex2.range.data.store.SharedJsonStore
 import com.geely.ex2.range.data.vhal.VehicleTelemetryReader
@@ -17,6 +18,7 @@ import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.domain.model.TripRecord
 import com.geely.ex2.range.domain.tracker.DriveStatsTracker
 import com.geely.ex2.range.overlay.RangeOverlayController
+import com.geely.ex2.range.ui.MainActivity
 import com.geely.ex2.range.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,9 +45,11 @@ class AppContainer(
     private val driveStats = DriveStatsTracker()
     private val time = AndroidTimeSource()
     private val reader = VehicleTelemetryReader(appContext)
-    private val overlay = RangeOverlayController(appContext) { x, y ->
-        setOverlayPosition(x, y)
-    }
+    private val overlay = RangeOverlayController(
+        context = appContext,
+        onPositionChanged = { x, y -> setOverlayPosition(x, y) },
+        onOpenApp = { openApp() },
+    )
 
     private val _uiState = MutableStateFlow(RangeUiState(settings = stores.loadSettings()))
     val uiState: StateFlow<RangeUiState> = _uiState.asStateFlow()
@@ -134,6 +138,15 @@ class AppContainer(
         }
     }
 
+    /** Тап по виджету поверх экрана — открыть приложение сразу на главном экране. */
+    private fun openApp() {
+        val intent = Intent(appContext, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(MainActivity.EXTRA_OPEN_DASHBOARD, true)
+        }
+        appContext.startActivity(intent)
+    }
+
     private fun setOverlayPosition(x: Int, y: Int) {
         synchronized(lock) {
             val settings = _uiState.value.settings.copy(overlayX = x, overlayY = y)
@@ -195,8 +208,8 @@ class AppContainer(
 
     fun poll() {
         if (mockActive) {
-            val read = UiPreviewMock.read(time.wallClockMs())
             synchronized(lock) {
+                val read = UiPreviewMock.read(time.wallClockMs())
                 val view = engine.onTick(read.tick)
                 publishState(
                     view = view,
@@ -205,19 +218,23 @@ class AppContainer(
             }
             return
         }
-        val read = try {
-            reader.read(time.wallClockMs())
-        } catch (t: Throwable) {
-            _uiState.value = _uiState.value.copy(
-                raw = RawTelemetry(
-                    carReady = false,
-                    connectError = t.message ?: t.javaClass.simpleName,
-                    lines = emptyList(),
-                ),
-            )
-            return
-        }
         synchronized(lock) {
+            // reader.read() mutates VehicleTelemetryReader's own (non-thread-safe) caches — must
+            // stay under the same lock as everything else so two overlapping poll() calls (e.g.
+            // the service's own loop racing a user-triggered resetPeriod()/setUserCapacityKwh(),
+            // both now dispatched off the main thread) can't interleave and tear those caches.
+            val read = try {
+                reader.read(time.wallClockMs())
+            } catch (t: Throwable) {
+                _uiState.value = _uiState.value.copy(
+                    raw = RawTelemetry(
+                        carReady = false,
+                        connectError = t.message ?: t.javaClass.simpleName,
+                        lines = emptyList(),
+                    ),
+                )
+                return
+            }
             val view = engine.onTick(read.tick)
             val checkpoint = engine.checkpoint(read.tick.wallClockMs)
             if (view.persistPeriod) {
@@ -267,9 +284,9 @@ class AppContainer(
                 view = view,
                 raw = read.raw,
             )
-        }
-        if (read.raw.carReady) {
-            reader.subscribeLive()
+            if (read.raw.carReady) {
+                reader.subscribeLive()
+            }
         }
     }
 

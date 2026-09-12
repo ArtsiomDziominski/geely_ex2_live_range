@@ -15,42 +15,39 @@ import kotlin.math.abs
  * значений показать крупно и какой подписью его сопроводить.
  */
 
-/** Порядок предпочтения окон для крупной цифры запаса хода. */
-private val HERO_WINDOW_ORDER = listOf(
-    RangeConstants.WINDOW_KM_15,
-    RangeConstants.WINDOW_KM_30,
-    RangeConstants.WINDOW_KM_5,
-)
-
 @Immutable
 data class HeroRange(
     val km: Double?,
     val caption: String,
-    val fromVehicle: Boolean,
+    /**
+     * Оценка головного устройства — показывается отдельной строкой под крупным числом со
+     * сравнением (см. [com.geely.ex2.range.ui.dashboard.RangeHero]). Null, если сравнивать не с
+     * чем: либо ГУ не даёт своей оценки, либо [km] сам и есть эта оценка (нечего сравнивать с собой).
+     */
+    val vehicleKm: Float?,
 )
 
 /**
- * Крупный запас хода на главной.
- * Берём готовый прогноз окна (по умолчанию 15 км), иначе оценку ГУ, иначе «нет данных».
+ * Крупный запас хода на главной — среднее по всем готовым окнам (5/15/30 км разом, не одно
+ * предпочтительное), иначе оценка ГУ, иначе «нет данных».
  */
 fun heroRange(engine: EngineView?): HeroRange {
-    if (engine == null) return HeroRange(null, "Запас хода — нет данных", false)
-    val ready = engine.windows.filter { it.status == WindowStatus.READY && it.rangeTo0Km != null }
-    val chosen = HERO_WINDOW_ORDER.firstNotNullOfOrNull { km ->
-        ready.firstOrNull { abs(it.windowKm - km) < 1e-6 }
-    }
-    if (chosen != null) {
+    if (engine == null) return HeroRange(null, "Запас хода — нет данных", null)
+    val ready = engine.windows
+        .filter { it.status == WindowStatus.READY }
+        .mapNotNull { it.rangeTo0Km }
+    val vehicle = engine.vehicleRangeRemainingKm?.takeIf { it.isFinite() && it > 0f }
+    if (ready.isNotEmpty()) {
         return HeroRange(
-            km = chosen.rangeTo0Km,
-            caption = "Запас хода · окно ${DisplayFormat.windowKmLabel(chosen.windowKm)}",
-            fromVehicle = false,
+            km = ready.average(),
+            caption = "Запас хода · среднее по окнам",
+            vehicleKm = vehicle,
         )
     }
-    val vehicle = engine.vehicleRangeRemainingKm?.takeIf { it.isFinite() && it > 0f }
     if (vehicle != null) {
-        return HeroRange(km = vehicle.toDouble(), caption = "Запас хода · оценка ГУ", fromVehicle = true)
+        return HeroRange(km = vehicle.toDouble(), caption = "Запас хода · оценка ГУ", vehicleKm = null)
     }
-    return HeroRange(null, "Запас хода — нет данных", false)
+    return HeroRange(null, "Запас хода — нет данных", null)
 }
 
 /** Подсказка под расходом текущей поездки — состояния движка сохранены дословно. */
