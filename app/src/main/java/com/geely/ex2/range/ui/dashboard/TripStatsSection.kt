@@ -304,20 +304,23 @@ private fun ConsumptionValue(
             .fillMaxWidth()
             .clearAndSetSemantics { contentDescription = description },
     ) {
-        AnimatedValue(
-            value = kwh,
-            style = RangeTextStyles.statValue,
-            color = if (muted) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-        )
-        Text(
-            "кВт·ч / 100 км",
-            style = RangeTextStyles.caption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.Bottom) {
+            AnimatedValue(
+                value = kwh,
+                style = RangeTextStyles.statValue,
+                color = if (muted) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+            Text(
+                "кВт·ч / 100 км",
+                style = RangeTextStyles.caption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = Spacing.xxs, bottom = 4.dp),
+            )
+        }
         Text(
             pct + " % / 100 км",
             style = RangeTextStyles.caption,
