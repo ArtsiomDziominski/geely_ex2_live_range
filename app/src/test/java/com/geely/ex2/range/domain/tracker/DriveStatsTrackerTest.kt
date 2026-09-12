@@ -9,12 +9,11 @@ import org.junit.Test
 
 class DriveStatsTrackerTest {
     @Test
-    fun parkUpdatesMaxTripAndOpenCycle() {
+    fun parkAccumulatesOpenCycleAndUpdatesMaxImmediately() {
         val tracker = DriveStatsTracker()
         tracker.onParked(10.0, tripSocUsedPercent = 5.0, tripAvgSpeedKmh = 60.0, tripAvgTempC = 10.0)
         tracker.onParked(50.0, tripSocUsedPercent = 20.0, tripAvgSpeedKmh = 80.0, tripAvgTempC = 20.0)
         val snap = tracker.snapshot()
-        assertEquals(50.0, snap.maxTripKm, 1e-9)
         assertEquals(60.0, snap.openChargeCycleKm, 1e-9)
         assertEquals(60.0, snap.maxChargeCycleKm, 1e-9)
         assertEquals(25.0, snap.maxChargeCycleSocUsedPercent, 1e-9)
@@ -28,7 +27,7 @@ class DriveStatsTrackerTest {
     fun tinyTripIsIgnored() {
         val tracker = DriveStatsTracker()
         tracker.onParked(0.04, tripSocUsedPercent = 1.0, tripAvgSpeedKmh = 30.0, tripAvgTempC = 15.0)
-        assertEquals(0.0, tracker.snapshot().maxTripKm, 1e-9)
+        assertEquals(0.0, tracker.snapshot().openChargeCycleKm, 1e-9)
         assertFalse(tracker.dirty)
     }
 
@@ -72,7 +71,6 @@ class DriveStatsTrackerTest {
         val tracker = DriveStatsTracker()
         tracker.restore(
             DriveStatsSnapshot(
-                maxTripKm = 40.0,
                 maxChargeCycleKm = 100.0,
                 maxChargeCycleSocUsedPercent = 50.0,
                 maxChargeCycleAvgSpeedKmh = 65.0,
@@ -81,7 +79,6 @@ class DriveStatsTrackerTest {
             ),
         )
         val view = tracker.displayed()
-        assertEquals(40.0, view.maxTripKm, 1e-9)
         assertEquals(100.0, view.maxChargeCycleKm, 1e-9)
         assertEquals(50.0, view.maxChargeCycleSocUsedPercent, 1e-9)
         assertEquals(65.0, view.maxChargeCycleAvgSpeedKmh!!, 1e-9)
@@ -95,7 +92,6 @@ class DriveStatsTrackerTest {
         val tracker = DriveStatsTracker()
         tracker.restore(
             DriveStatsSnapshot(
-                maxTripKm = 87.4,
                 maxChargeCycleKm = 318.2,
                 openChargeCycleKm = 142.0,
                 chargingSession = true,

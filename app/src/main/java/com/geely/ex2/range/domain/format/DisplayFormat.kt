@@ -108,7 +108,7 @@ object DisplayFormat {
 
     fun socPoints(value: Double?): String {
         if (value == null || !value.isFinite()) return "—"
-        return String.format(Locale.US, "%.1f п.п.", value)
+        return String.format(Locale.US, "%.1f%%", value)
     }
 
     fun duration(ms: Long?): String {

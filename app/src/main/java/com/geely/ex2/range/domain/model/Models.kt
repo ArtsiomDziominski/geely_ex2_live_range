@@ -134,7 +134,6 @@ data class RawTelemetry(
 
 /** Persisted drive records — tiny JSON, written only on park / charge edge. */
 data class DriveStatsSnapshot(
-    val maxTripKm: Double = 0.0,
     val maxChargeCycleKm: Double = 0.0,
     val maxChargeCycleSocUsedPercent: Double = 0.0,
     val maxChargeCycleAvgSpeedKmh: Double? = null,
@@ -148,9 +147,8 @@ data class DriveStatsSnapshot(
     val chargingSession: Boolean = false,
 )
 
-/** Records for the Stats screen: max trip P→P, and the breakdown of the max charge-to-charge cycle. */
+/** Records for the Stats screen: breakdown of the max charge-to-charge cycle. */
 data class DriveStatsView(
-    val maxTripKm: Double = 0.0,
     val maxChargeCycleKm: Double = 0.0,
     val maxChargeCycleSocUsedPercent: Double = 0.0,
     val maxChargeCycleAvgSpeedKmh: Double? = null,

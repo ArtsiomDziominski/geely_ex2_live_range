@@ -5,15 +5,11 @@ import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.RangeConstants
 
 /**
- * Two records for the Stats screen:
- *  - max trip: leave P until confirmed P.
- *  - max charge cycle: km / SOC used / avg speed / avg outside temp between two charges
- *    (a cycle can span several trips if the car isn't charged after every one).
+ * Max charge cycle record for the Stats screen: km / SOC used / avg speed / avg outside temp
+ * between two charges (a cycle can span several trips if the car isn't charged after every one).
  * Mutates RAM only; caller persists [snapshot] when [dirty] after a park / charge edge.
  */
 class DriveStatsTracker {
-    private var maxTripKm: Double = 0.0
-
     private var maxChargeCycleKm: Double = 0.0
     private var maxChargeCycleSocUsedPercent: Double = 0.0
     private var maxChargeCycleAvgSpeedKmh: Double? = null
@@ -33,7 +29,6 @@ class DriveStatsTracker {
         private set
 
     fun restore(snapshot: DriveStatsSnapshot) {
-        maxTripKm = finiteKm(snapshot.maxTripKm)
         maxChargeCycleKm = finiteKm(snapshot.maxChargeCycleKm)
         maxChargeCycleSocUsedPercent = finitePositive(snapshot.maxChargeCycleSocUsedPercent)
         maxChargeCycleAvgSpeedKmh = snapshot.maxChargeCycleAvgSpeedKmh?.takeIf { it.isFinite() }
@@ -51,7 +46,6 @@ class DriveStatsTracker {
 
     fun snapshot(): DriveStatsSnapshot {
         return DriveStatsSnapshot(
-            maxTripKm = maxTripKm,
             maxChargeCycleKm = maxChargeCycleKm,
             maxChargeCycleSocUsedPercent = maxChargeCycleSocUsedPercent,
             maxChargeCycleAvgSpeedKmh = maxChargeCycleAvgSpeedKmh,
@@ -79,10 +73,6 @@ class DriveStatsTracker {
     ) {
         val km = finiteKm(tripKm)
         if (km < RangeConstants.MIN_COUNTED_TRIP_KM) return
-        if (km > maxTripKm) {
-            maxTripKm = km
-            dirty = true
-        }
         if (chargingSession) return
         openChargeCycleKm += km
         openChargeCycleSocUsedPercent += finitePositive(tripSocUsedPercent)
@@ -124,7 +114,6 @@ class DriveStatsTracker {
 
     fun displayed(): DriveStatsView {
         return DriveStatsView(
-            maxTripKm = maxTripKm,
             maxChargeCycleKm = maxChargeCycleKm,
             maxChargeCycleSocUsedPercent = maxChargeCycleSocUsedPercent,
             maxChargeCycleAvgSpeedKmh = maxChargeCycleAvgSpeedKmh,

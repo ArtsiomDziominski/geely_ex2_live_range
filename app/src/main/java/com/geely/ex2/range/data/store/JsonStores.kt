@@ -179,7 +179,6 @@ class JsonStores(private val dir: File) {
         val json = readObject(driveStatsFile) ?: return DriveStatsSnapshot()
         lastDriveStatsText = json.toString()
         return DriveStatsSnapshot(
-            maxTripKm = finiteKm(json.optDouble("maxTripKm", 0.0)),
             maxChargeCycleKm = finiteKm(json.optDouble("maxChargeCycleKm", 0.0)),
             maxChargeCycleSocUsedPercent = finiteKm(json.optDouble("maxChargeCycleSocUsedPercent", 0.0)),
             maxChargeCycleAvgSpeedKmh = optNullableDouble(json, "maxChargeCycleAvgSpeedKmh"),
@@ -196,7 +195,6 @@ class JsonStores(private val dir: File) {
 
     fun saveDriveStats(snapshot: DriveStatsSnapshot) {
         val json = JSONObject()
-            .put("maxTripKm", snapshot.maxTripKm)
             .put("maxChargeCycleKm", snapshot.maxChargeCycleKm)
             .put("maxChargeCycleSocUsedPercent", snapshot.maxChargeCycleSocUsedPercent)
             .put("maxChargeCycleAvgSpeedKmh", snapshot.maxChargeCycleAvgSpeedKmh ?: JSONObject.NULL)
