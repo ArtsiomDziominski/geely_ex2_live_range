@@ -160,11 +160,6 @@ object UiPreviewMock {
         }
     }
 
-    fun pitchDegrees(nowMs: Long): Float? {
-        // Inclination is not mocked — only SOC / odometer / outdoor °C (and speed/gear support).
-        return null
-    }
-
     fun read(nowMs: Long): TelemetryRead {
         val elapsed = SystemClock.elapsedRealtime()
         ensureSession(elapsed)

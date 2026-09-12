@@ -90,18 +90,7 @@ object DisplayFormat {
         return String.format(Locale.US, "%.1f", value)
     }
 
-    fun pitchDegrees(value: Float?): String {
-        if (value == null || !value.isFinite()) return "—"
-        val whole = value.toInt()
-        val sign = when {
-            whole > 0 -> "+"
-            whole < 0 -> "-"
-            else -> ""
-        }
-        return String.format(Locale.US, "%s%d", sign, kotlin.math.abs(whole))
-    }
-
-    fun energyKwh(value: Double?): String {
+fun energyKwh(value: Double?): String {
         if (value == null || !value.isFinite()) return "—"
         return String.format(Locale.US, "%.1f кВт·ч", value)
     }

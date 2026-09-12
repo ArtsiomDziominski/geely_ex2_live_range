@@ -65,23 +65,6 @@ fun tripHint(engine: EngineView?): String {
     }
 }
 
-/** Направление уклона — словом, не только цветом. */
-enum class InclineDirection(val label: String) {
-    UP("Подъём"),
-    DOWN("Спуск"),
-    FLAT("Ровно"),
-    UNKNOWN("Нет данных"),
-}
-
-fun inclineDirection(pitchDegrees: Float?): InclineDirection {
-    if (pitchDegrees == null || !pitchDegrees.isFinite()) return InclineDirection.UNKNOWN
-    return when {
-        pitchDegrees > 0.5f -> InclineDirection.UP
-        pitchDegrees < -0.5f -> InclineDirection.DOWN
-        else -> InclineDirection.FLAT
-    }
-}
-
 /** Насколько прогноз близок к оценке головного устройства. */
 enum class VehicleDeltaTone { CLOSE, FAR }
 

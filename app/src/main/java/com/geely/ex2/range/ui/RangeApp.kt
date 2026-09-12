@@ -275,7 +275,6 @@ private fun RangeNavHost(
             val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
             DashboardScreen(
                 engine = dashboard.engine,
-                pitchDegrees = dashboard.pitchDegrees,
                 connectError = dashboard.connectError,
                 onResetPeriod = viewModel::resetPeriod,
                 onRetry = viewModel::retry,

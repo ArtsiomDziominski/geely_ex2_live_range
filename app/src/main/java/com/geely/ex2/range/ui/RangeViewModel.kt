@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 
 data class DashboardUiState(
     val engine: EngineView? = null,
-    val pitchDegrees: Float? = null,
     /** Текст ошибки чтения телеметрии — нужен UI для состояния ошибки. */
     val connectError: String? = null,
     val carReady: Boolean = false,
@@ -58,7 +57,6 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
         .map {
             DashboardUiState(
                 engine = it.engine,
-                pitchDegrees = it.pitchDegrees,
                 connectError = it.raw.connectError,
                 carReady = it.raw.carReady,
             )

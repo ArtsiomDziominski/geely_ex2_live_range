@@ -31,7 +31,6 @@ import com.geely.ex2.range.ui.theme.Spacing
 @Composable
 fun DashboardScreen(
     engine: EngineView?,
-    pitchDegrees: Float?,
     connectError: String?,
     onResetPeriod: () -> Unit,
     onRetry: () -> Unit,
@@ -64,7 +63,7 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(layout.sectionGap),
             ) {
                 LiveVehicleCard(engine)
-                TripStatsSection(engine, pitchDegrees, onResetPeriod)
+                TripStatsSection(engine, onResetPeriod)
                 if (connectError != null) {
                     TelemetryWarning(connectError, onRetry)
                 }
@@ -93,7 +92,7 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(layout.sectionGap),
         ) {
             item(key = "live") { LiveVehicleCard(engine) }
-            item(key = "trip") { TripStatsSection(engine, pitchDegrees, onResetPeriod) }
+            item(key = "trip") { TripStatsSection(engine, onResetPeriod) }
             item(key = "forecast") {
                 ForecastCard(
                     windows = engine.windows,

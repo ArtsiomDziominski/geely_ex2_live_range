@@ -12,13 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDownward
-import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Route
-import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,18 +23,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.R
 import com.geely.ex2.range.domain.engine.EngineView
@@ -54,55 +47,26 @@ import com.geely.ex2.range.ui.theme.RangeTextStyles
 import com.geely.ex2.range.ui.theme.RangeThemeColors
 import com.geely.ex2.range.ui.theme.Spacing
 
-/** Ниже этой ширины три карточки в ряд уже нечитаемы — раскладываем 2 + 1. */
-private val THREE_IN_ROW_MIN_WIDTH = 620.dp
+/** Ниже этой ширины пара карточек уже нечитаема — раскладываем в столбец. */
+private val SIDE_BY_SIDE_MIN_WIDTH: Dp = 360.dp
 
 /**
- * Блок поездки: расход за период, расход текущей поездки и наклон дороги.
- * На телефоне — 2 + 1, в широком окне — три карточки в ряд.
+ * Блок поездки: расход за период и расход текущей поездки.
+ * В узком окне — колонкой, иначе — рядом, на равную высоту.
  */
 @Composable
 fun TripStatsSection(
     engine: EngineView?,
-    pitchDegrees: Float?,
     onResetPeriod: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val layout = LocalRangeLayout.current
     val gap = layout.sectionGap
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        if (maxWidth < THREE_IN_ROW_MIN_WIDTH) {
-            // 2 + 1: пара выравнивается интринсиком, «Наклон» повторяет высоту этой пары.
-            var pairHeightPx by remember { mutableIntStateOf(0) }
-            val pairHeight = with(LocalDensity.current) { pairHeightPx.toDp() }
+        if (maxWidth < SIDE_BY_SIDE_MIN_WIDTH) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(gap)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min)
-                        .onSizeChanged { pairHeightPx = it.height },
-                    horizontalArrangement = Arrangement.spacedBy(gap),
-                ) {
-                    ConsumptionCard(
-                        engine,
-                        onResetPeriod,
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                    )
-                    TripConsumptionCard(
-                        engine,
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                    )
-                }
-                InclineCard(
-                    pitchDegrees,
-                    Modifier
-                        .fillMaxWidth()
-                        .then(if (pairHeightPx > 0) Modifier.height(pairHeight) else Modifier),
-                )
+                ConsumptionCard(engine, onResetPeriod, Modifier.fillMaxWidth())
+                TripConsumptionCard(engine, Modifier.fillMaxWidth())
             }
         } else {
             Row(
@@ -120,12 +84,6 @@ fun TripStatsSection(
                 )
                 TripConsumptionCard(
                     engine,
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                )
-                InclineCard(
-                    pitchDegrees,
                     Modifier
                         .weight(1f)
                         .fillMaxHeight(),
@@ -215,77 +173,6 @@ fun TripConsumptionCard(
     }
 }
 
-/** Угол тангажа: стрелка + слово, цвет только как дополнение. */
-@Composable
-fun InclineCard(
-    pitchDegrees: Float?,
-    modifier: Modifier = Modifier,
-) {
-    val direction = inclineDirection(pitchDegrees)
-    val known = direction != InclineDirection.UNKNOWN
-    val arrow: ImageVector? = when (direction) {
-        InclineDirection.UP -> Icons.Outlined.ArrowUpward
-        InclineDirection.DOWN -> Icons.Outlined.ArrowDownward
-        InclineDirection.FLAT -> Icons.Outlined.Remove
-        InclineDirection.UNKNOWN -> null
-    }
-    val value = if (known) DisplayFormat.pitchDegrees(pitchDegrees) else NO_VALUE
-
-    SectionCard(
-        modifier = modifier,
-        title = "Наклон",
-        icon = Icons.Outlined.Terrain,
-        subtitle = "уклон дороги",
-        contentGap = Spacing.xxs,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clearAndSetSemantics {
-                    contentDescription = if (known) {
-                        "Наклон " + value + " градусов, " + direction.label
-                    } else {
-                        "Наклон: нет данных"
-                    }
-                },
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            if (arrow != null) {
-                Icon(
-                    arrow,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .padding(bottom = 4.dp, end = Spacing.xxs)
-                        .size(20.dp),
-                )
-            }
-            AnimatedValue(
-                value = value,
-                style = RangeTextStyles.statValue,
-                color = if (known) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-            if (known) {
-                Text(
-                    "°",
-                    style = RangeTextStyles.unit,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
-                )
-            }
-        }
-        Text(
-            direction.label,
-            style = RangeTextStyles.caption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
 @Composable
 private fun ConsumptionValue(
     rates: ConsumptionRates?,
@@ -372,7 +259,7 @@ private fun ResetPeriodDialog(
 fun TripStatsSkeleton(modifier: Modifier = Modifier) {
     val layout = LocalRangeLayout.current
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(layout.sectionGap)) {
-        repeat(if (layout.isCompact) 2 else 3) {
+        repeat(2) {
             SectionCard(modifier = Modifier.weight(1f), contentGap = Spacing.xs) {
                 SkeletonBox(height = 14.dp, widthFraction = 0.5f)
                 SkeletonBox(height = 26.dp, widthFraction = 0.7f)

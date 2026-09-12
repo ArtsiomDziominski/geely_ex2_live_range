@@ -1,7 +1,6 @@
 package com.geely.ex2.range.app
 
 import android.content.Context
-import com.geely.ex2.range.data.sensor.InclinationSensor
 import com.geely.ex2.range.data.store.JsonStores
 import com.geely.ex2.range.data.store.SharedJsonStore
 import com.geely.ex2.range.data.vhal.VehicleTelemetryReader
@@ -27,7 +26,6 @@ import kotlinx.coroutines.launch
 
 data class RangeUiState(
     val engine: EngineView? = null,
-    val pitchDegrees: Float? = null,
     val raw: RawTelemetry = RawTelemetry(carReady = false, connectError = null, lines = emptyList()),
     val settings: SettingsSnapshot = SettingsSnapshot(),
     val driveStats: DriveStatsView = DriveStatsView(),
@@ -45,7 +43,6 @@ class AppContainer(
     private val driveStats = DriveStatsTracker()
     private val time = AndroidTimeSource()
     private val reader = VehicleTelemetryReader(appContext)
-    private val inclination = InclinationSensor(appContext)
     private val overlay = RangeOverlayController(appContext) { x, y ->
         setOverlayPosition(x, y)
     }
@@ -86,7 +83,6 @@ class AppContainer(
     }
 
     fun startReader() {
-        inclination.start()
         if (mockActive) {
             _uiState.value = _uiState.value.copy(
                 raw = UiPreviewMock.read(time.wallClockMs()).raw,
@@ -153,7 +149,6 @@ class AppContainer(
 
     private fun publishState(
         view: EngineView?,
-        pitchDegrees: Float?,
         raw: RawTelemetry,
     ) {
         val previous = _uiState.value
@@ -167,7 +162,6 @@ class AppContainer(
         val statsView = driveStats.displayed()
         _uiState.value = RangeUiState(
             engine = view,
-            pitchDegrees = pitchDegrees,
             raw = raw,
             settings = settings,
             driveStats = statsView,
@@ -206,7 +200,6 @@ class AppContainer(
                 val view = engine.onTick(read.tick)
                 publishState(
                     view = view,
-                    pitchDegrees = UiPreviewMock.pitchDegrees(time.wallClockMs()),
                     raw = read.raw,
                 )
             }
@@ -272,7 +265,6 @@ class AppContainer(
             }
             publishState(
                 view = view,
-                pitchDegrees = inclination.pitchDegrees(),
                 raw = read.raw,
             )
         }
@@ -334,7 +326,6 @@ class AppContainer(
     }
 
     fun closeReader() {
-        inclination.stop()
         if (!mockActive) {
             reader.close()
         }
