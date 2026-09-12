@@ -26,28 +26,30 @@ import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.ui.theme.RangeThemeColors
 
-private const val SEGMENT_COUNT = 4
+private const val SEGMENT_COUNT = 5
 
 /**
  * Компактная горизонтальная шкала SOC.
  *
- * Сегментов по-прежнему четыре, а последний заполненный краснеет ниже резерва —
- * логика индикации сохранена, изменились только размеры и подача.
+ * Пять сегментов по 20 % каждый. Цвет всей шкалы: оранжевый ≤ [warningSocPercent],
+ * красный < [criticalSocPercent], иначе зелёный (или цвет зарядки во время зарядки).
  */
 @Composable
 fun SocBatteryIndicator(
     socPercent: Float?,
     charging: Boolean,
     modifier: Modifier = Modifier,
-    reserveSocPercent: Double = RangeConstants.RESERVE_SOC_PERCENT,
+    warningSocPercent: Double = RangeConstants.RESERVE_SOC_PERCENT,
+    criticalSocPercent: Double = 10.0,
     height: Dp = 14.dp,
 ) {
     val extra = RangeThemeColors.extra
     val track = MaterialTheme.colorScheme.surfaceVariant
-    val reserveMark = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     val level = socPercent?.takeIf { it.isFinite() }?.coerceIn(0f, 100f)
-    val reserve = reserveSocPercent.toFloat()
-    val low = level != null && level < reserve
+    val warning = warningSocPercent.toFloat()
+    val critical = criticalSocPercent.toFloat()
+    val isLow = level != null && level <= warning
+    val isCritical = level != null && level < critical
 
     val animatedLevel by animateFloatAsState(
         targetValue = level ?: 0f,
@@ -58,7 +60,8 @@ fun SocBatteryIndicator(
         targetValue = when {
             level == null -> track
             charging -> extra.charging
-            low -> extra.lowSoc
+            isCritical -> extra.lowSoc
+            isLow -> extra.warning
             else -> extra.charging
         },
         animationSpec = tween(durationMillis = 240),
@@ -68,7 +71,8 @@ fun SocBatteryIndicator(
     val description = when {
         level == null -> "Заряд батареи: нет данных"
         charging -> "Заряд батареи ${DisplayFormat.socNumber(level)} процентов, идёт зарядка"
-        low -> "Заряд батареи ${DisplayFormat.socNumber(level)} процентов, ниже резерва"
+        isCritical -> "Заряд батареи ${DisplayFormat.socNumber(level)} процентов, критично низкий"
+        isLow -> "Заряд батареи ${DisplayFormat.socNumber(level)} процентов, ниже резерва"
         else -> "Заряд батареи ${DisplayFormat.socNumber(level)} процентов"
     }
 
@@ -79,9 +83,7 @@ fun SocBatteryIndicator(
             .semantics { contentDescription = description },
     ) {
         val radius = size.height / 2f
-        val tipW = size.height * 0.32f
-        val gap = size.height * 0.22f
-        val bodyW = (size.width - tipW - gap).coerceAtLeast(1f)
+        val bodyW = size.width
         val body = RoundRect(Rect(0f, 0f, bodyW, size.height), CornerRadius(radius, radius))
         val bodyPath = Path().apply { addRoundRect(body) }
 
@@ -96,16 +98,14 @@ fun SocBatteryIndicator(
             val segGap = innerH * 0.22f
             val segW = (innerW - segGap * (SEGMENT_COUNT - 1)) / SEGMENT_COUNT
             val filled = animatedLevel / 100f * SEGMENT_COUNT
-            val lastFilledIndex = (filled - 1e-5f).toInt().coerceIn(0, SEGMENT_COUNT - 1)
 
             clipPath(bodyPath, ClipOp.Intersect) {
                 for (i in 0 until SEGMENT_COUNT) {
                     val segFill = (filled - i).coerceIn(0f, 1f)
                     if (segFill <= 0f) continue
                     val x = innerLeft + i * (segW + segGap)
-                    val segmentColor = if (i == lastFilledIndex && low) extra.lowSoc else fillColor
                     drawRoundRect(
-                        color = segmentColor,
+                        color = fillColor,
                         topLeft = Offset(x, innerTop),
                         size = Size(segW * segFill, innerH),
                         cornerRadius = CornerRadius(innerH * 0.35f, innerH * 0.35f),
@@ -113,21 +113,5 @@ fun SocBatteryIndicator(
                 }
             }
         }
-
-        // Отметка резерва (20 % по умолчанию).
-        val reserveX = bodyW * (reserve / 100f)
-        drawLine(
-            color = reserveMark,
-            start = Offset(reserveX, 0f),
-            end = Offset(reserveX, size.height),
-            strokeWidth = size.height * 0.14f,
-        )
-
-        drawRoundRect(
-            color = track,
-            topLeft = Offset(bodyW + gap, size.height * 0.28f),
-            size = Size(tipW, size.height * 0.44f),
-            cornerRadius = CornerRadius(tipW * 0.5f, tipW * 0.5f),
-        )
     }
 }

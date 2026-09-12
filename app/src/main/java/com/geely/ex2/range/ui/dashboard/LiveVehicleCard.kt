@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
@@ -106,26 +105,36 @@ private fun SocAndRange(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            AnimatedValue(
-                value = socText,
-                style = socStyle,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            if (hasSoc) {
-                Text(
-                    "%",
-                    style = RangeTextStyles.unit,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = Spacing.xxs, bottom = 8.dp),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.semantics {
+                    contentDescription = if (hasSoc) {
+                        "Заряд батареи $socText процентов"
+                    } else {
+                        "Заряд батареи: нет данных"
+                    }
+                },
+            ) {
+                AnimatedValue(
+                    value = socText,
+                    style = socStyle,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
+                if (hasSoc) {
+                    Text(
+                        "%",
+                        style = RangeTextStyles.unit,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = Spacing.xxs, bottom = 8.dp),
+                    )
+                }
             }
+            RangeHero(hero, rangeStyle)
         }
-        Text(
-            if (hasSoc) "SOC" else "Нет SOC",
-            style = RangeTextStyles.caption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         AnimatedVisibility(visible = charging, enter = fadeIn(), exit = fadeOut()) {
             val delta = DisplayFormat.socDeltaShort(engine?.socDeltaPoints)
             StatusChip(
@@ -137,8 +146,6 @@ private fun SocAndRange(
             )
         }
 
-        Spacer(Modifier.height(Spacing.s))
-        RangeHero(hero, rangeStyle)
         Spacer(Modifier.height(Spacing.s))
         SocBatteryIndicator(socPercent = soc, charging = charging)
     }
@@ -152,32 +159,28 @@ private fun RangeHero(hero: HeroRange, valueStyle: TextStyle) {
     } else {
         hero.caption
     }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = description },
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Row(
+        verticalAlignment = Alignment.Bottom,
+        modifier = Modifier.semantics { contentDescription = description },
     ) {
         if (hasRange) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    "≈",
-                    style = RangeTextStyles.unit,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = Spacing.xxs, bottom = 6.dp),
-                )
-                AnimatedValue(
-                    value = DisplayFormat.kmNumber(hero.km),
-                    style = valueStyle,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    "км",
-                    style = RangeTextStyles.unit,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = Spacing.xxs, bottom = 6.dp),
-                )
-            }
+            Text(
+                "≈",
+                style = RangeTextStyles.unit,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = Spacing.xxs, bottom = 6.dp),
+            )
+            AnimatedValue(
+                value = DisplayFormat.kmNumber(hero.km),
+                style = valueStyle,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                "км",
+                style = RangeTextStyles.unit,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = Spacing.xxs, bottom = 6.dp),
+            )
         } else {
             Text(
                 NO_VALUE,
@@ -185,12 +188,6 @@ private fun RangeHero(hero: HeroRange, valueStyle: TextStyle) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(
-            hero.caption,
-            style = RangeTextStyles.caption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
