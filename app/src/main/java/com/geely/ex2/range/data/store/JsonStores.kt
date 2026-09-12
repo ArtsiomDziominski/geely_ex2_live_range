@@ -90,6 +90,10 @@ class JsonStores(private val dir: File) {
                 startedAtMs = it.optLong("startedAtMs", 0L),
                 lastDistanceKm = it.optDouble("lastDistanceKm", 0.0),
                 lastSocUsedPoints = it.optDouble("lastSocUsedPoints", 0.0),
+                speedSumKmh = it.optDouble("speedSumKmh", 0.0),
+                speedSamples = it.optInt("speedSamples", 0),
+                tempSumC = it.optDouble("tempSumC", 0.0),
+                tempSamples = it.optInt("tempSamples", 0),
             )
         }
         val points = json.optJSONArray("points") ?: JSONArray()
@@ -154,6 +158,10 @@ class JsonStores(private val dir: File) {
                 .put("startedAtMs", it.startedAtMs)
                 .put("lastDistanceKm", it.lastDistanceKm)
                 .put("lastSocUsedPoints", it.lastSocUsedPoints)
+                .put("speedSumKmh", it.speedSumKmh)
+                .put("speedSamples", it.speedSamples)
+                .put("tempSumC", it.tempSumC)
+                .put("tempSamples", it.tempSamples)
         } ?: JSONObject.NULL
         val json = JSONObject()
             .put("periodDistanceKm", checkpoint.period.distanceKm)
@@ -173,7 +181,15 @@ class JsonStores(private val dir: File) {
         return DriveStatsSnapshot(
             maxTripKm = finiteKm(json.optDouble("maxTripKm", 0.0)),
             maxChargeCycleKm = finiteKm(json.optDouble("maxChargeCycleKm", 0.0)),
+            maxChargeCycleSocUsedPercent = finiteKm(json.optDouble("maxChargeCycleSocUsedPercent", 0.0)),
+            maxChargeCycleAvgSpeedKmh = optNullableDouble(json, "maxChargeCycleAvgSpeedKmh"),
+            maxChargeCycleAvgTempC = optNullableDouble(json, "maxChargeCycleAvgTempC"),
             openChargeCycleKm = finiteKm(json.optDouble("openChargeCycleKm", 0.0)),
+            openChargeCycleSocUsedPercent = finiteKm(json.optDouble("openChargeCycleSocUsedPercent", 0.0)),
+            openChargeCycleSpeedWeightedSum = json.optDouble("openChargeCycleSpeedWeightedSum", 0.0),
+            openChargeCycleSpeedWeightKm = finiteKm(json.optDouble("openChargeCycleSpeedWeightKm", 0.0)),
+            openChargeCycleTempWeightedSum = json.optDouble("openChargeCycleTempWeightedSum", 0.0),
+            openChargeCycleTempWeightKm = finiteKm(json.optDouble("openChargeCycleTempWeightKm", 0.0)),
             chargingSession = json.optBoolean("chargingSession", false),
         )
     }
@@ -182,12 +198,25 @@ class JsonStores(private val dir: File) {
         val json = JSONObject()
             .put("maxTripKm", snapshot.maxTripKm)
             .put("maxChargeCycleKm", snapshot.maxChargeCycleKm)
+            .put("maxChargeCycleSocUsedPercent", snapshot.maxChargeCycleSocUsedPercent)
+            .put("maxChargeCycleAvgSpeedKmh", snapshot.maxChargeCycleAvgSpeedKmh ?: JSONObject.NULL)
+            .put("maxChargeCycleAvgTempC", snapshot.maxChargeCycleAvgTempC ?: JSONObject.NULL)
             .put("openChargeCycleKm", snapshot.openChargeCycleKm)
+            .put("openChargeCycleSocUsedPercent", snapshot.openChargeCycleSocUsedPercent)
+            .put("openChargeCycleSpeedWeightedSum", snapshot.openChargeCycleSpeedWeightedSum)
+            .put("openChargeCycleSpeedWeightKm", snapshot.openChargeCycleSpeedWeightKm)
+            .put("openChargeCycleTempWeightedSum", snapshot.openChargeCycleTempWeightedSum)
+            .put("openChargeCycleTempWeightKm", snapshot.openChargeCycleTempWeightKm)
             .put("chargingSession", snapshot.chargingSession)
         val text = json.toString()
         if (text == lastDriveStatsText) return
         atomicWrite(driveStatsFile, text)
         lastDriveStatsText = text
+    }
+
+    private fun optNullableDouble(json: JSONObject, key: String): Double? {
+        if (!json.has(key) || json.isNull(key)) return null
+        return json.optDouble(key).takeIf { it.isFinite() }
     }
 
     private fun finiteKm(value: Double): Double {

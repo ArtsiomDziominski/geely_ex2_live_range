@@ -33,6 +33,8 @@ data class EngineView(
     val period: ConsumptionRates,
     val trip: ConsumptionRates,
     val tripIncomplete: Boolean,
+    val tripAvgSpeedKmh: Double?,
+    val tripAvgTempC: Double?,
     val windows: List<RangeWindow>,
     val usableCapacityKwh: Double?,
     val capacityIsUserSet: Boolean,
@@ -151,6 +153,11 @@ class RangeEngine {
         val capacity = SocDecoder.usableCapacityKwh(userCapacityKwh, vehicleNominalWh)
         val periodRates = rates(periodDistanceKm, periodSocUsed, capacity)
         val tripRates = tripRates(capacity)
+        val tripSnapshot = trip
+        val tripAvgSpeedKmh = tripSnapshot?.takeIf { it.speedSamples > 0 }
+            ?.let { it.speedSumKmh / it.speedSamples }
+        val tripAvgTempC = tripSnapshot?.takeIf { it.tempSamples > 0 }
+            ?.let { it.tempSumC / it.tempSamples }
         val windows = if (charging) {
             RangeConstants.RANGE_WINDOWS_KM.map { km ->
                 RangeWindow(windowKm = km, status = WindowStatus.CHARGING)
@@ -172,6 +179,8 @@ class RangeEngine {
             period = periodRates,
             trip = tripRates,
             tripIncomplete = tripIncomplete && trip?.active == true,
+            tripAvgSpeedKmh = tripAvgSpeedKmh,
+            tripAvgTempC = tripAvgTempC,
             windows = windows,
             usableCapacityKwh = capacity,
             capacityIsUserSet = userCapacityKwh != null,
@@ -242,9 +251,15 @@ class RangeEngine {
         } else {
             current.lastSocUsedPoints
         }
+        val speed = tick.speedKmh?.takeIf { it.isFinite() && it >= 0f }
+        val temp = tick.outsideTempC?.takeIf { it.isFinite() }
         trip = current.copy(
             lastDistanceKm = distanceKm,
             lastSocUsedPoints = socUsed,
+            speedSumKmh = current.speedSumKmh + (speed?.toDouble() ?: 0.0),
+            speedSamples = current.speedSamples + if (speed != null) 1 else 0,
+            tempSumC = current.tempSumC + (temp?.toDouble() ?: 0.0),
+            tempSamples = current.tempSamples + if (temp != null) 1 else 0,
         )
     }
 

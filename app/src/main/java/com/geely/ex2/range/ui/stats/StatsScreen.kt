@@ -32,6 +32,7 @@ import com.geely.ex2.range.domain.calculation.Consumption
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.ConsumptionRates
+import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.RangeWindow
 import com.geely.ex2.range.domain.model.WindowStatus
 import com.geely.ex2.range.ui.StatsUiState
@@ -66,53 +67,7 @@ fun StatsScreen(
         verticalArrangement = Arrangement.spacedBy(layout.sectionGap),
     ) {
         item(key = "records") {
-            SectionCard(
-                title = "Рекорды",
-                icon = Icons.Outlined.EmojiEvents,
-                subtitle = "поездка: с выезда с P до P · цикл: от зарядки до зарядки",
-            ) {
-                val cells = listOf(
-                    "Макс. поездка" to DisplayFormat.km(records.maxTripKm),
-                    "Эта поездка" to DisplayFormat.km(records.currentTripKm),
-                    "Макс. с зарядки" to DisplayFormat.km(records.maxChargeCycleKm),
-                    "С этой зарядки" to DisplayFormat.km(records.currentChargeCycleKm),
-                )
-                if (layout.isCompact) {
-                    cells.chunked(2).forEach { pair ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min),
-                        ) {
-                            pair.forEachIndexed { index, cell ->
-                                if (index > 0) {
-                                    VerticalDivider(
-                                        Modifier.fillMaxHeight(),
-                                        color = MaterialTheme.colorScheme.outlineVariant,
-                                    )
-                                }
-                                RecordCell(cell.first, cell.second, Modifier.weight(1f))
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(IntrinsicSize.Min),
-                    ) {
-                        cells.forEachIndexed { index, cell ->
-                            if (index > 0) {
-                                VerticalDivider(
-                                    Modifier.fillMaxHeight(),
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                )
-                            }
-                            RecordCell(cell.first, cell.second, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
+            RecordBlocks(records = records, compact = layout.isCompact, gap = layout.sectionGap)
         }
 
         item(key = "consumption") {
@@ -160,6 +115,54 @@ fun StatsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Два блока рекордов: макс. поездка с P до P, и разбор макс. пробега между двумя зарядками
+ * (км, потраченный заряд, средняя скорость, средняя t° воздуха за этот цикл).
+ */
+@Composable
+private fun RecordBlocks(
+    records: DriveStatsView,
+    compact: Boolean,
+    gap: Dp,
+) {
+    val trip = @Composable { modifier: Modifier ->
+        SectionCard(
+            modifier = modifier,
+            title = "Макс. поездка",
+            icon = Icons.Outlined.Route,
+            subtitle = "с выезда с P до возврата на P",
+        ) {
+            Text(DisplayFormat.km(records.maxTripKm), style = RangeTextStyles.statValue)
+        }
+    }
+    val chargeCycle = @Composable { modifier: Modifier ->
+        SectionCard(
+            modifier = modifier,
+            title = "Макс. поездка между зарядками",
+            icon = Icons.Outlined.EmojiEvents,
+            subtitle = "от зарядки до следующей зарядки",
+            contentGap = Spacing.xxs,
+        ) {
+            StatRow("Пройдено", DisplayFormat.km(records.maxChargeCycleKm))
+            StatRow("Заряд потрачен", DisplayFormat.socPoints(records.maxChargeCycleSocUsedPercent))
+            StatRow("Средняя скорость", records.maxChargeCycleAvgSpeedKmh?.let { DisplayFormat.speedKmh(it.toFloat()) } ?: "—")
+            StatRow("Средняя t° воздуха", records.maxChargeCycleAvgTempC?.let { DisplayFormat.tempC(it.toFloat()) } ?: "—")
+        }
+    }
+
+    if (compact) {
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            trip(Modifier.fillMaxWidth())
+            chargeCycle(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            trip(Modifier.weight(1f))
+            chargeCycle(Modifier.weight(1f))
         }
     }
 }
@@ -276,26 +279,6 @@ private fun WindowStatsBlock(window: RangeWindow, charging: Boolean) {
             window.status == WindowStatus.GAP -> StatRow("Статус", "разрыв в окне")
             window.status == WindowStatus.INVALID -> StatRow("Статус", "мало данных")
         }
-    }
-}
-
-@Composable
-private fun RecordCell(
-    title: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.padding(vertical = Spacing.xs, horizontal = Spacing.xs),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            title,
-            style = RangeTextStyles.caption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Spacing.xxs))
-        Text(value, style = RangeTextStyles.statValue)
     }
 }
 

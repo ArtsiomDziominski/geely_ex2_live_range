@@ -73,7 +73,7 @@ class AppContainer(
         }
         _uiState.value = RangeUiState(
             settings = settings,
-            driveStats = driveStats.displayed(tripKm = 0.0, tripLive = false),
+            driveStats = driveStats.displayed(),
         )
     }
 
@@ -156,14 +156,7 @@ class AppContainer(
         } else {
             previous.settings
         }
-        val statsView = if (view == null) {
-            driveStats.displayed(tripKm = 0.0, tripLive = false)
-        } else {
-            driveStats.displayed(
-                tripKm = view.trip.distanceKm,
-                tripLive = !view.waitingForDrive,
-            )
-        }
+        val statsView = driveStats.displayed()
         _uiState.value = RangeUiState(
             engine = view,
             pitchDegrees = pitchDegrees,
@@ -227,7 +220,12 @@ class AppContainer(
             val checkpoint = engine.checkpoint(read.tick.wallClockMs)
             if (view.persistPeriod) {
                 val period = checkpoint.period
-                driveStats.onParked(view.trip.distanceKm)
+                driveStats.onParked(
+                    tripKm = view.trip.distanceKm,
+                    tripSocUsedPercent = view.trip.socUsedPoints,
+                    tripAvgSpeedKmh = view.tripAvgSpeedKmh,
+                    tripAvgTempC = view.tripAvgTempC,
+                )
                 if (!mockActive) {
                     persistScope.launch { stores.savePeriod(period) }
                 }

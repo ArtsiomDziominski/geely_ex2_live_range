@@ -48,6 +48,10 @@ data class TripSnapshot(
     val startedAtMs: Long,
     val lastDistanceKm: Double,
     val lastSocUsedPoints: Double,
+    val speedSumKmh: Double = 0.0,
+    val speedSamples: Int = 0,
+    val tempSumC: Double = 0.0,
+    val tempSamples: Int = 0,
 )
 
 enum class AppThemeMode(val storageKey: String, val label: String) {
@@ -132,16 +136,25 @@ data class RawTelemetry(
 data class DriveStatsSnapshot(
     val maxTripKm: Double = 0.0,
     val maxChargeCycleKm: Double = 0.0,
+    val maxChargeCycleSocUsedPercent: Double = 0.0,
+    val maxChargeCycleAvgSpeedKmh: Double? = null,
+    val maxChargeCycleAvgTempC: Double? = null,
     val openChargeCycleKm: Double = 0.0,
+    val openChargeCycleSocUsedPercent: Double = 0.0,
+    val openChargeCycleSpeedWeightedSum: Double = 0.0,
+    val openChargeCycleSpeedWeightKm: Double = 0.0,
+    val openChargeCycleTempWeightedSum: Double = 0.0,
+    val openChargeCycleTempWeightKm: Double = 0.0,
     val chargingSession: Boolean = false,
 )
 
-/** Live + records for Stats UI (records include live trip if it already beats them). */
+/** Records for the Stats screen: max trip P→P, and the breakdown of the max charge-to-charge cycle. */
 data class DriveStatsView(
     val maxTripKm: Double = 0.0,
     val maxChargeCycleKm: Double = 0.0,
-    val currentTripKm: Double = 0.0,
-    val currentChargeCycleKm: Double = 0.0,
+    val maxChargeCycleSocUsedPercent: Double = 0.0,
+    val maxChargeCycleAvgSpeedKmh: Double? = null,
+    val maxChargeCycleAvgTempC: Double? = null,
 )
 
 object RangeConstants {
