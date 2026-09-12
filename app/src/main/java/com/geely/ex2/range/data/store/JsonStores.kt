@@ -7,16 +7,23 @@ import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.SettingsSnapshot
+import com.geely.ex2.range.domain.model.TripRecord
 import com.geely.ex2.range.domain.model.TripSnapshot
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-class JsonStores(private val dir: File) {
+/**
+ * [shared], when given, mirrors `drive-stats.json` and `trips.json` into shared storage so the
+ * record and trip history survive an app uninstall — see [SharedJsonStore]. Everything else
+ * (settings, period, buffer checkpoint) stays internal-only; it's disposable working state.
+ */
+class JsonStores(private val dir: File, private val shared: SharedJsonStore? = null) {
     private val periodFile = File(dir, "period.json")
     private val settingsFile = File(dir, "settings.json")
     private val bufferFile = File(dir, "buffer-checkpoint.json")
     private val driveStatsFile = File(dir, "drive-stats.json")
+    private val tripsFile = File(dir, "trips.json")
     private var lastDriveStatsText: String? = null
 
     fun loadSettings(): SettingsSnapshot {
@@ -94,6 +101,8 @@ class JsonStores(private val dir: File) {
                 speedSamples = it.optInt("speedSamples", 0),
                 tempSumC = it.optDouble("tempSumC", 0.0),
                 tempSamples = it.optInt("tempSamples", 0),
+                tempStartC = optNullableFloat(it, "tempStartC"),
+                tempEndC = optNullableFloat(it, "tempEndC"),
             )
         }
         val points = json.optJSONArray("points") ?: JSONArray()
@@ -118,6 +127,7 @@ class JsonStores(private val dir: File) {
                         },
                         chargingLikely = item.optBoolean("charging"),
                         gap = item.optBoolean("gap"),
+                        consumedSocPoints = item.optDouble("consumed", 0.0),
                     ),
                 )
             }
@@ -132,6 +142,8 @@ class JsonStores(private val dir: File) {
             } else {
                 null
             },
+            bufferSocConsumed = json.optDouble("bufferSocConsumed", 0.0),
+            lastBufferDrivingSoc = optNullableFloat(json, "lastBufferDrivingSoc"),
         )
     }
 
@@ -147,7 +159,8 @@ class JsonStores(private val dir: File) {
                     .put("speed", point.speedKmh?.toDouble() ?: JSONObject.NULL)
                     .put("temp", point.outsideTempC?.toDouble() ?: JSONObject.NULL)
                     .put("charging", point.chargingLikely)
-                    .put("gap", point.gap),
+                    .put("gap", point.gap)
+                    .put("consumed", point.consumedSocPoints),
             )
         }
         val trip = checkpoint.trip?.let {
@@ -162,6 +175,8 @@ class JsonStores(private val dir: File) {
                 .put("speedSamples", it.speedSamples)
                 .put("tempSumC", it.tempSumC)
                 .put("tempSamples", it.tempSamples)
+                .put("tempStartC", it.tempStartC ?: JSONObject.NULL)
+                .put("tempEndC", it.tempEndC ?: JSONObject.NULL)
         } ?: JSONObject.NULL
         val json = JSONObject()
             .put("periodDistanceKm", checkpoint.period.distanceKm)
@@ -170,13 +185,15 @@ class JsonStores(private val dir: File) {
             .put("parkSessionId", checkpoint.period.parkSessionId ?: JSONObject.NULL)
             .put("totalKm", checkpoint.totalKm)
             .put("lastDrivingSoc", checkpoint.lastDrivingSoc ?: JSONObject.NULL)
+            .put("bufferSocConsumed", checkpoint.bufferSocConsumed)
+            .put("lastBufferDrivingSoc", checkpoint.lastBufferDrivingSoc ?: JSONObject.NULL)
             .put("trip", trip)
             .put("points", points)
         atomicWrite(bufferFile, json.toString())
     }
 
     fun loadDriveStats(): DriveStatsSnapshot {
-        val json = readObject(driveStatsFile) ?: return DriveStatsSnapshot()
+        val json = readMirrored(DRIVE_STATS_NAME, driveStatsFile) ?: return DriveStatsSnapshot()
         lastDriveStatsText = json.toString()
         return DriveStatsSnapshot(
             maxChargeCycleKm = finiteKm(json.optDouble("maxChargeCycleKm", 0.0)),
@@ -208,13 +225,84 @@ class JsonStores(private val dir: File) {
             .put("chargingSession", snapshot.chargingSession)
         val text = json.toString()
         if (text == lastDriveStatsText) return
-        atomicWrite(driveStatsFile, text)
+        writeMirrored(DRIVE_STATS_NAME, driveStatsFile, text)
         lastDriveStatsText = text
+    }
+
+    fun loadTrips(): List<TripRecord> {
+        val json = readMirrored(TRIPS_NAME, tripsFile) ?: return emptyList()
+        val array = json.optJSONArray("trips") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                add(
+                    TripRecord(
+                        finishedAtMs = item.optLong("finishedAtMs", 0L),
+                        distanceKm = item.optDouble("distanceKm", 0.0),
+                        socStartPercent = optNullableFloat(item, "socStartPercent"),
+                        socEndPercent = optNullableFloat(item, "socEndPercent"),
+                        socUsedPercent = item.optDouble("socUsedPercent", 0.0),
+                        avgSpeedKmh = optNullableDouble(item, "avgSpeedKmh"),
+                        tempStartC = optNullableFloat(item, "tempStartC"),
+                        tempEndC = optNullableFloat(item, "tempEndC"),
+                        avgTempC = optNullableDouble(item, "avgTempC"),
+                    ),
+                )
+            }
+        }
+    }
+
+    fun saveTrips(trips: List<TripRecord>) {
+        val array = JSONArray()
+        trips.forEach { trip ->
+            array.put(
+                JSONObject()
+                    .put("finishedAtMs", trip.finishedAtMs)
+                    .put("distanceKm", trip.distanceKm)
+                    .put("socStartPercent", trip.socStartPercent ?: JSONObject.NULL)
+                    .put("socEndPercent", trip.socEndPercent ?: JSONObject.NULL)
+                    .put("socUsedPercent", trip.socUsedPercent)
+                    .put("avgSpeedKmh", trip.avgSpeedKmh ?: JSONObject.NULL)
+                    .put("tempStartC", trip.tempStartC ?: JSONObject.NULL)
+                    .put("tempEndC", trip.tempEndC ?: JSONObject.NULL)
+                    .put("avgTempC", trip.avgTempC ?: JSONObject.NULL),
+            )
+        }
+        writeMirrored(TRIPS_NAME, tripsFile, JSONObject().put("trips", array).toString())
+    }
+
+    /** Deletes the trip history everywhere — internal cache and the shared uninstall-proof copy. */
+    fun clearTrips() {
+        tripsFile.delete()
+        shared?.delete(TRIPS_NAME)
+    }
+
+    /** Prefers the shared (uninstall-proof) copy when present, re-seeding the internal cache from it. */
+    private fun readMirrored(displayName: String, internalFile: File): JSONObject? {
+        val sharedText = shared?.read(displayName)
+        if (sharedText != null) {
+            val json = runCatching { JSONObject(sharedText) }.getOrNull()
+            if (json != null) {
+                atomicWrite(internalFile, sharedText)
+                return json
+            }
+        }
+        return readObject(internalFile)
+    }
+
+    private fun writeMirrored(displayName: String, internalFile: File, text: String) {
+        atomicWrite(internalFile, text)
+        shared?.write(displayName, text)
     }
 
     private fun optNullableDouble(json: JSONObject, key: String): Double? {
         if (!json.has(key) || json.isNull(key)) return null
         return json.optDouble(key).takeIf { it.isFinite() }
+    }
+
+    private fun optNullableFloat(json: JSONObject, key: String): Float? {
+        if (!json.has(key) || json.isNull(key)) return null
+        return json.optDouble(key).toFloat().takeIf { it.isFinite() }
     }
 
     private fun finiteKm(value: Double): Double {
@@ -238,5 +326,10 @@ class JsonStores(private val dir: File) {
             file.writeText(text)
             tmp.delete()
         }
+    }
+
+    private companion object {
+        const val DRIVE_STATS_NAME = "drive-stats.json"
+        const val TRIPS_NAME = "trips.json"
     }
 }

@@ -66,13 +66,13 @@ import com.geely.ex2.range.ui.help.HelpScreen
 import com.geely.ex2.range.ui.layout.LocalRangeLayout
 import com.geely.ex2.range.ui.layout.ProvideRangeLayout
 import com.geely.ex2.range.ui.settings.SettingsScreen
-import com.geely.ex2.range.ui.stats.StatsScreen
 import com.geely.ex2.range.ui.theme.RangeTheme
 import com.geely.ex2.range.ui.theme.Spacing
 import com.geely.ex2.range.ui.theme.resolveDarkTheme
+import com.geely.ex2.range.ui.trips.TripsScreen
 
 private const val ROUTE_DASHBOARD = "dashboard"
-private const val ROUTE_STATS = "stats"
+private const val ROUTE_TRIPS = "trips"
 private const val ROUTE_HELP = "help"
 private const val ROUTE_SETTINGS = "settings"
 
@@ -86,7 +86,7 @@ private data class Destination(
 
 private val Destinations = listOf(
     Destination(ROUTE_DASHBOARD, "Главная", Icons.Filled.Dashboard, Icons.Outlined.Dashboard),
-    Destination(ROUTE_STATS, "Статистика", Icons.Filled.BarChart, Icons.Outlined.BarChart),
+    Destination(ROUTE_TRIPS, "Поездки", Icons.Filled.BarChart, Icons.Outlined.BarChart),
     Destination(ROUTE_HELP, "Справка", Icons.AutoMirrored.Filled.Help, Icons.AutoMirrored.Outlined.HelpOutline),
     Destination(ROUTE_SETTINGS, "Настройки", Icons.Filled.Settings, Icons.Outlined.Settings),
 )
@@ -281,9 +281,13 @@ private fun RangeNavHost(
                 onRetry = viewModel::retry,
             )
         }
-        composable(ROUTE_STATS) {
-            val stats by viewModel.stats.collectAsStateWithLifecycle()
-            StatsScreen(state = stats)
+        composable(ROUTE_TRIPS) {
+            val trips by viewModel.trips.collectAsStateWithLifecycle()
+            TripsScreen(
+                state = trips,
+                onDeleteTrip = viewModel::deleteTrip,
+                onClearTrips = viewModel::clearTrips,
+            )
         }
         composable(ROUTE_HELP) {
             val help by viewModel.help.collectAsStateWithLifecycle()

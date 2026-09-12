@@ -54,12 +54,15 @@ object RangeWindows {
         if (slice.any { it.gap }) {
             return RangeWindow(windowKm, WindowStatus.GAP, chart = chart)
         }
-        val socThen = buffer.socAt(targetKm) ?: return RangeWindow(
+        // Consumed-so-far (not raw SOC) so a charge's SOC jump inside the window can't corrupt
+        // the rate — it simply doesn't add to this counter, so the window keeps working through
+        // a charge stop instead of needing a reset-and-refill.
+        val consumedThen = buffer.consumedAt(targetKm) ?: return RangeWindow(
             windowKm,
             WindowStatus.INVALID,
             chart = chart,
         )
-        val deltaSoc = (socThen - socNow).toDouble()
+        val deltaSoc = last.consumedSocPoints - consumedThen
         if (deltaSoc <= 0.0) {
             return RangeWindow(
                 windowKm = windowKm,

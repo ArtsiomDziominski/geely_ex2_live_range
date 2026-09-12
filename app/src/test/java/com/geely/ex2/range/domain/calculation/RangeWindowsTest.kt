@@ -66,13 +66,39 @@ class RangeWindowsTest {
         assertEquals(54f, window.chart.first().speedKmh)
     }
 
+    /** A charge's SOC jump inside the window must not cancel out the real driving consumption. */
+    @Test
+    fun deltaIgnoresChargeJumpWithinWindow() {
+        // 0→5 km driving (80→70), then a charge at km 5 (70→95, parked so km doesn't move),
+        // then 5→8 km driving again (95→92).
+        val buffer = buffer(0.0 to 80f, 5.0 to 70f, 5.0 to 95f, 8.0 to 92f)
+        val window = RangeWindows.estimate(buffer, 3.0, socNow = 92f)
+        assertEquals(WindowStatus.READY, window.status)
+        assertEquals(3.0, window.deltaSocPoints!!, 0.05)
+    }
+
     private fun buffer(vararg kmSoc: Pair<Double, Float>): SampleRingBuffer {
         val buffer = SampleRingBuffer()
-        kmSoc.forEach { (km, soc) -> buffer.add(point(km, soc)) }
+        var consumed = 0.0
+        var previousSoc: Float? = null
+        kmSoc.forEach { (km, soc) ->
+            val previous = previousSoc
+            if (previous != null) {
+                val drop = (previous - soc).toDouble()
+                if (drop > 0.0) consumed += drop
+            }
+            previousSoc = soc
+            buffer.add(point(km, soc, consumedSocPoints = consumed))
+        }
         return buffer
     }
 
-    private fun point(km: Double, soc: Float, charging: Boolean = false): BufferPoint {
+    private fun point(
+        km: Double,
+        soc: Float,
+        charging: Boolean = false,
+        consumedSocPoints: Double = 0.0,
+    ): BufferPoint {
         return BufferPoint(
             elapsedRealtimeMs = (km * 100_000).toLong(),
             wallClockMs = 0L,
@@ -82,6 +108,7 @@ class RangeWindowsTest {
             outsideTempC = 8f,
             chargingLikely = charging,
             gap = false,
+            consumedSocPoints = consumedSocPoints,
         )
     }
 }

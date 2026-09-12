@@ -5,10 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.geely.ex2.range.app.RangeApplication
 import com.geely.ex2.range.domain.engine.EngineView
+import com.geely.ex2.range.domain.model.ActiveTripView
 import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.SettingsSnapshot
+import com.geely.ex2.range.domain.model.TripRecord
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,9 +28,11 @@ data class DashboardUiState(
     val carReady: Boolean = false,
 )
 
-data class StatsUiState(
-    val engine: EngineView? = null,
+data class TripsUiState(
     val driveStats: DriveStatsView = DriveStatsView(),
+    val trips: List<TripRecord> = emptyList(),
+    /** Non-null while a trip is open (left P, not parked yet) — shown above the history. */
+    val currentTrip: ActiveTripView? = null,
 )
 
 data class HelpUiState(
@@ -65,12 +69,18 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = DashboardUiState(),
         )
 
-    val stats: StateFlow<StatsUiState> = uiState
-        .map { StatsUiState(engine = it.engine, driveStats = it.driveStats) }
+    val trips: StateFlow<TripsUiState> = uiState
+        .map {
+            TripsUiState(
+                driveStats = it.driveStats,
+                trips = it.trips,
+                currentTrip = it.engine?.let(::currentTripView),
+            )
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = StatsUiState(),
+            initialValue = TripsUiState(),
         )
 
     val help: StateFlow<HelpUiState> = uiState
@@ -130,4 +140,27 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     fun clearPendingOverlayEnable() {
         pendingOverlayEnable = false
     }
+
+    fun deleteTrip(trip: TripRecord) {
+        container.deleteTrip(trip)
+    }
+
+    fun clearTrips() {
+        container.clearTrips()
+    }
+}
+
+/** Non-null only while actually driving (left P, not parked) — the trip not yet saved to history. */
+private fun currentTripView(view: EngineView): ActiveTripView? {
+    if (view.waitingForDrive) return null
+    return ActiveTripView(
+        distanceKm = view.trip.distanceKm,
+        socStartPercent = view.tripSocStartPercent,
+        socNowPercent = view.tripSocEndPercent,
+        socUsedPercent = view.trip.socUsedPoints,
+        avgSpeedKmh = view.tripAvgSpeedKmh,
+        tempStartC = view.tripTempStartC,
+        tempNowC = view.tripTempEndC,
+        avgTempC = view.tripAvgTempC,
+    )
 }

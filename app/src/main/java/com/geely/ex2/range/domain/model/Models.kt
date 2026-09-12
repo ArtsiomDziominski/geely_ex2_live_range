@@ -32,6 +32,12 @@ data class BufferPoint(
     val outsideTempC: Float? = null,
     val chargingLikely: Boolean,
     val gap: Boolean,
+    /**
+     * Running total of SOC actually spent while driving, up to this point — only ever grows;
+     * a charge's SOC jump never feeds into it. Lets a 5/15/30 km window keep computing a rate
+     * across a charge stop instead of needing to reset and refill from empty.
+     */
+    val consumedSocPoints: Double = 0.0,
 )
 
 data class PeriodSnapshot(
@@ -52,6 +58,10 @@ data class TripSnapshot(
     val speedSamples: Int = 0,
     val tempSumC: Double = 0.0,
     val tempSamples: Int = 0,
+    /** t° воздуха на первом тике поездки. */
+    val tempStartC: Float? = null,
+    /** t° воздуха на последнем тике поездки — обновляется каждый тик, застывает на P. */
+    val tempEndC: Float? = null,
 )
 
 enum class AppThemeMode(val storageKey: String, val label: String) {
@@ -82,6 +92,10 @@ data class EngineCheckpoint(
     val trip: TripSnapshot?,
     val totalKm: Double,
     val lastDrivingSoc: Float?,
+    /** Mirrors [BufferPoint.consumedSocPoints]'s running total, restored so a restart mid-drive
+     *  doesn't glitch it back to 0. */
+    val bufferSocConsumed: Double = 0.0,
+    val lastBufferDrivingSoc: Float? = null,
 )
 
 enum class WindowStatus {
@@ -147,12 +161,37 @@ data class DriveStatsSnapshot(
     val chargingSession: Boolean = false,
 )
 
-/** Records for the Stats screen: breakdown of the max charge-to-charge cycle. */
+/** Records for the Trips screen: breakdown of the max charge-to-charge cycle. */
 data class DriveStatsView(
     val maxChargeCycleKm: Double = 0.0,
     val maxChargeCycleSocUsedPercent: Double = 0.0,
     val maxChargeCycleAvgSpeedKmh: Double? = null,
     val maxChargeCycleAvgTempC: Double? = null,
+)
+
+/** One completed trip (P → P), saved for the Trips history list. */
+data class TripRecord(
+    val finishedAtMs: Long,
+    val distanceKm: Double,
+    val socStartPercent: Float?,
+    val socEndPercent: Float?,
+    val socUsedPercent: Double,
+    val avgSpeedKmh: Double?,
+    val tempStartC: Float?,
+    val tempEndC: Float?,
+    val avgTempC: Double?,
+)
+
+/** Trip in progress (left P, not parked yet) — same shape as [TripRecord], values as of now. */
+data class ActiveTripView(
+    val distanceKm: Double,
+    val socStartPercent: Float?,
+    val socNowPercent: Float?,
+    val socUsedPercent: Double,
+    val avgSpeedKmh: Double?,
+    val tempStartC: Float?,
+    val tempNowC: Float?,
+    val avgTempC: Double?,
 )
 
 object RangeConstants {
@@ -180,6 +219,8 @@ object RangeConstants {
     const val MIN_COUNTED_TRIP_KM = 0.1
     /** SOC-up ticks while parked before a charge cycle is closed (flag is intermittent). */
     const val CHARGE_CONFIRM_TICKS = 3
+    /** Trip history cap — oldest trips are dropped once the saved log passes this length. */
+    const val MAX_SAVED_TRIPS = 200
     /** Geely EX2 HU reference canvas for UI scale (1920×1040 under typical chrome). */
     const val HU_CONTENT_WIDTH_PX = 1920
     const val HU_CONTENT_HEIGHT_PX = 1040

@@ -9,6 +9,7 @@ import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RawPropertyLine
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.TelemetryTick
+import com.geely.ex2.range.domain.model.TripRecord
 import com.geely.ex2.range.domain.model.TripSnapshot
 import kotlin.math.PI
 import kotlin.math.sin
@@ -37,6 +38,81 @@ object UiPreviewMock {
 
     /** Empty records — live maxes grow from parked trips if you switch scenarios later. */
     val driveStats: DriveStatsSnapshot = DriveStatsSnapshot()
+
+    /** Sample trip history for the Trips screen — spread across three days for filter testing. */
+    val trips: List<TripRecord> = run {
+        val now = System.currentTimeMillis()
+        val hour = 60 * 60 * 1000L
+        val day = 24 * hour
+        listOf(
+            TripRecord(
+                finishedAtMs = now - 2 * hour,
+                distanceKm = 18.4,
+                socStartPercent = 82f,
+                socEndPercent = 74f,
+                socUsedPercent = 8.0,
+                avgSpeedKmh = 47.0,
+                tempStartC = 6f,
+                tempEndC = 9f,
+                avgTempC = 7.5,
+            ),
+            TripRecord(
+                finishedAtMs = now - 6 * hour,
+                distanceKm = 42.1,
+                socStartPercent = 95f,
+                socEndPercent = 78f,
+                socUsedPercent = 17.0,
+                avgSpeedKmh = 78.0,
+                tempStartC = 3f,
+                tempEndC = 5f,
+                avgTempC = 4.0,
+            ),
+            TripRecord(
+                finishedAtMs = now - day - 3 * hour,
+                distanceKm = 9.7,
+                socStartPercent = 60f,
+                socEndPercent = 55f,
+                socUsedPercent = 5.0,
+                avgSpeedKmh = 32.0,
+                tempStartC = -2f,
+                tempEndC = 1f,
+                avgTempC = -0.5,
+            ),
+            TripRecord(
+                finishedAtMs = now - day - 8 * hour,
+                distanceKm = 63.5,
+                socStartPercent = 90f,
+                socEndPercent = 62f,
+                socUsedPercent = 28.0,
+                avgSpeedKmh = 91.0,
+                tempStartC = -5f,
+                tempEndC = -3f,
+                avgTempC = -4.0,
+            ),
+            TripRecord(
+                finishedAtMs = now - 2 * day - 1 * hour,
+                distanceKm = 5.2,
+                socStartPercent = 40f,
+                socEndPercent = 37f,
+                socUsedPercent = 3.0,
+                avgSpeedKmh = 24.0,
+                tempStartC = 12f,
+                tempEndC = 13f,
+                avgTempC = 12.5,
+            ),
+            TripRecord(
+                finishedAtMs = now - 2 * day - 5 * hour,
+                distanceKm = 27.8,
+                socStartPercent = 70f,
+                socEndPercent = 58f,
+                socUsedPercent = 12.0,
+                avgSpeedKmh = 65.0,
+                tempStartC = 10f,
+                tempEndC = 14f,
+                avgTempC = 12.0,
+            ),
+        )
+    }
 
     private var sessionStartElapsedMs: Long = Long.MIN_VALUE
     private var lastTickElapsedMs: Long = Long.MIN_VALUE

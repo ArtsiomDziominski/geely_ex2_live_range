@@ -61,6 +61,24 @@ class SampleRingBuffer(
         return null
     }
 
+    /** Same interpolation as [socAt], over [BufferPoint.consumedSocPoints] instead of raw SOC. */
+    fun consumedAt(targetKm: Double): Double? {
+        if (points.isEmpty()) return null
+        if (targetKm <= points.first().cumulativeKm) return points.first().consumedSocPoints
+        if (targetKm >= points.last().cumulativeKm) return points.last().consumedSocPoints
+        for (index in 1 until points.size) {
+            val left = points[index - 1]
+            val right = points[index]
+            if (targetKm in left.cumulativeKm..right.cumulativeKm) {
+                val span = right.cumulativeKm - left.cumulativeKm
+                if (span <= 1e-9) return left.consumedSocPoints
+                val t = (targetKm - left.cumulativeKm) / span
+                return left.consumedSocPoints + (right.consumedSocPoints - left.consumedSocPoints) * t
+            }
+        }
+        return null
+    }
+
     fun sliceFrom(targetKm: Double): List<BufferPoint> {
         if (points.isEmpty()) return emptyList()
         val start = points.indexOfFirst { it.cumulativeKm >= targetKm }.let { index ->

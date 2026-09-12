@@ -35,6 +35,10 @@ data class EngineView(
     val tripIncomplete: Boolean,
     val tripAvgSpeedKmh: Double?,
     val tripAvgTempC: Double?,
+    val tripSocStartPercent: Float?,
+    val tripSocEndPercent: Float?,
+    val tripTempStartC: Float?,
+    val tripTempEndC: Float?,
     val windows: List<RangeWindow>,
     val usableCapacityKwh: Double?,
     val capacityIsUserSet: Boolean,
@@ -62,8 +66,10 @@ class RangeEngine {
     private var vehicleNominalWh: Float? = null
     private var lastCheckpointElapsedMs: Long = Long.MIN_VALUE
     private var tripIncomplete: Boolean = false
-    private var chargeConfirmTicks: Int = 0
-    private var chargeSessionPending: Boolean = false
+
+    /** Drives [BufferPoint.consumedSocPoints] — see there for why it exists. */
+    private var bufferSocConsumed: Double = 0.0
+    private var lastBufferDrivingSoc: Float? = null
 
     fun restore(checkpoint: EngineCheckpoint, settings: SettingsSnapshot) {
         userCapacityKwh = settings.usableCapacityKwh
@@ -72,6 +78,8 @@ class RangeEngine {
         periodUpdatedAtMs = checkpoint.period.updatedAtMs
         parkSessionId = checkpoint.period.parkSessionId
         lastDrivingSoc = checkpoint.lastDrivingSoc
+        bufferSocConsumed = checkpoint.bufferSocConsumed
+        lastBufferDrivingSoc = checkpoint.lastBufferDrivingSoc
         distance.restore(checkpoint.totalKm)
         buffer.restore(checkpoint.buffer)
         trip = checkpoint.trip
@@ -107,6 +115,8 @@ class RangeEngine {
             trip = trip,
             totalKm = distance.totalKm,
             lastDrivingSoc = lastDrivingSoc,
+            bufferSocConsumed = bufferSocConsumed,
+            lastBufferDrivingSoc = lastBufferDrivingSoc,
         )
     }
 
@@ -124,9 +134,9 @@ class RangeEngine {
         )
 
         val charging = detectCharging(tick, parked)
-        trackChargeSession(parked, charging)
         applyGearEvents(events, tick)
         accumulatePeriod(tick, parked, distanceTick.deltaKm)
+        accumulateBufferConsumption(tick, parked)
         updateLiveTrip(tick)
         appendBuffer(tick, charging, distanceTick.gap)
 
@@ -158,6 +168,9 @@ class RangeEngine {
             ?.let { it.speedSumKmh / it.speedSamples }
         val tripAvgTempC = tripSnapshot?.takeIf { it.tempSamples > 0 }
             ?.let { it.tempSumC / it.tempSamples }
+        val tripSocEndPercent = tripSnapshot?.soc0?.let { soc0 ->
+            (soc0 - tripSnapshot.lastSocUsedPoints).toFloat()
+        }
         val windows = if (charging) {
             RangeConstants.RANGE_WINDOWS_KM.map { km ->
                 RangeWindow(windowKm = km, status = WindowStatus.CHARGING)
@@ -181,6 +194,10 @@ class RangeEngine {
             tripIncomplete = tripIncomplete && trip?.active == true,
             tripAvgSpeedKmh = tripAvgSpeedKmh,
             tripAvgTempC = tripAvgTempC,
+            tripSocStartPercent = tripSnapshot?.soc0,
+            tripSocEndPercent = tripSocEndPercent,
+            tripTempStartC = tripSnapshot?.tempStartC,
+            tripTempEndC = tripSnapshot?.tempEndC,
             windows = windows,
             usableCapacityKwh = capacity,
             capacityIsUserSet = userCapacityKwh != null,
@@ -201,17 +218,13 @@ class RangeEngine {
                         trip = current.copy(active = false)
                     }
                     lastDrivingSoc = null
+                    // A charge (or just sitting) between here and the next drive must not be
+                    // read as consumption once driving resumes — see accumulateBufferConsumption.
+                    lastBufferDrivingSoc = null
                 }
                 GearEvent.LeftPark, GearEvent.StartedDriving -> {
-                    // Buffer sat frozen while parked (appendBuffer skips confirmed park), so a
-                    // charge cycle leaves stale pre-charge samples paired with the post-charge
-                    // SOC jump. Drop them so windows start counting fresh km from here.
-                    if (chargeSessionPending) {
-                        buffer.clear()
-                        chargeSessionPending = false
-                    }
-                    chargeConfirmTicks = 0
                     tripIncomplete = false
+                    val startTemp = tick.outsideTempC?.takeIf { it.isFinite() }
                     trip = TripSnapshot(
                         active = true,
                         soc0 = tick.socPercent,
@@ -219,6 +232,8 @@ class RangeEngine {
                         startedAtMs = tick.wallClockMs,
                         lastDistanceKm = 0.0,
                         lastSocUsedPoints = 0.0,
+                        tempStartC = startTemp,
+                        tempEndC = startTemp,
                     )
                     lastDrivingSoc = tick.socPercent
                 }
@@ -242,6 +257,25 @@ class RangeEngine {
         lastDrivingSoc = soc
     }
 
+    /**
+     * Drives [BufferPoint.consumedSocPoints]: only ever grows, only while actually driving, and
+     * only on a real SOC drop — a charge's rise (or regen's) never feeds it. [lastBufferDrivingSoc]
+     * resets to null on [GearEvent.ConfirmedPark] so the first tick after a charge (or any parked
+     * stretch) isn't compared against a stale pre-park reading.
+     */
+    private fun accumulateBufferConsumption(tick: TelemetryTick, parked: Boolean) {
+        if (parked) return
+        val soc = tick.socPercent ?: return
+        val previous = lastBufferDrivingSoc
+        if (previous != null) {
+            val drop = (previous - soc).toDouble()
+            if (drop > 0.0) {
+                bufferSocConsumed += drop
+            }
+        }
+        lastBufferDrivingSoc = soc
+    }
+
     private fun updateLiveTrip(tick: TelemetryTick) {
         val current = trip ?: return
         if (!current.active) return
@@ -260,6 +294,7 @@ class RangeEngine {
             speedSamples = current.speedSamples + if (speed != null) 1 else 0,
             tempSumC = current.tempSumC + (temp?.toDouble() ?: 0.0),
             tempSamples = current.tempSamples + if (temp != null) 1 else 0,
+            tempEndC = temp ?: current.tempEndC,
         )
     }
 
@@ -297,19 +332,9 @@ class RangeEngine {
                 outsideTempC = tick.outsideTempC?.takeIf { it.isFinite() },
                 chargingLikely = charging,
                 gap = gap,
+                consumedSocPoints = bufferSocConsumed,
             ),
         )
-    }
-
-    /** Debounced like [com.geely.ex2.range.domain.tracker.DriveStatsTracker]'s charge session. */
-    private fun trackChargeSession(parked: Boolean, charging: Boolean) {
-        if (!parked) {
-            chargeConfirmTicks = 0
-            return
-        }
-        if (!charging) return
-        if (chargeConfirmTicks < RangeConstants.CHARGE_CONFIRM_TICKS) chargeConfirmTicks++
-        if (chargeConfirmTicks >= RangeConstants.CHARGE_CONFIRM_TICKS) chargeSessionPending = true
     }
 
     private fun detectCharging(tick: TelemetryTick, parked: Boolean): Boolean {

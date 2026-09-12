@@ -3,6 +3,7 @@ package com.geely.ex2.range.domain.engine
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.Gear
 import com.geely.ex2.range.domain.model.PeriodSnapshot
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.domain.model.TelemetryTick
 import com.geely.ex2.range.domain.model.WindowStatus
@@ -109,13 +110,18 @@ class RangeEngineTest {
     }
 
     @Test
-    fun chargeSessionResetsWindowBufferOnLeavePark() {
+    fun chargeSessionKeepsWindowBufferContinuous() {
         val engine = RangeEngine()
         drive(engine, startMs = 0, seconds = 400, startSoc = 80f, kmh = 90f)
-        park(engine, startMs = 400_000)
+        // Settle into park at the drive's own ending SOC (~70) — a real charge only ramps up
+        // once parked *and confirmed*; jumping SOC here (like the shared park() helper's fixed
+        // 80f) would fake a charge before confirmation and falsely tag this stretch as CHARGING.
+        engine.onTick(sample(400_000, 70f, 0f, Gear.PARK))
+        engine.onTick(sample(400_500, 70f, 0f, Gear.PARK))
+        engine.onTick(sample(402_600, 70f, 0f, Gear.PARK))
 
         var t = 405_000L
-        var soc = 60f
+        var soc = 70f
         repeat(4) {
             engine.onTick(sample(t, soc, 0f, Gear.PARK, charging = true))
             soc += 5f
@@ -126,10 +132,17 @@ class RangeEngineTest {
         t += 1_000L
         val afterDrive = engine.onTick(sample(t, soc - 0.2f, 20f, Gear.DRIVE, odometerKm = 10.05f))
 
-        assertTrue(afterDrive.windows.all { it.status == WindowStatus.NEED_MORE_KM })
-        afterDrive.windows.forEach { window ->
-            assertEquals(window.windowKm, window.remainingToFillKm!!, 0.05)
-        }
+        // 10+ km already sit in the buffer from before the charge, so the 5 km window doesn't
+        // need to refill from empty — it computes right away, using only real driving consumption.
+        val five = afterDrive.windows.first { it.windowKm == RangeConstants.WINDOW_KM_5 }
+        assertEquals(WindowStatus.READY, five.status)
+        assertTrue(five.deltaSocPoints!! > 0.0)
+
+        // The 30 km window is short on *total* buffered distance — same as it'd be with no
+        // charge at all — not reset back to needing a full 30 km again.
+        val thirty = afterDrive.windows.first { it.windowKm == RangeConstants.WINDOW_KM_30 }
+        assertEquals(WindowStatus.NEED_MORE_KM, thirty.status)
+        assertTrue(thirty.remainingToFillKm!! < RangeConstants.WINDOW_KM_30)
     }
 
     private fun drive(

@@ -3,6 +3,7 @@ package com.geely.ex2.range.app
 import android.content.Context
 import com.geely.ex2.range.data.sensor.InclinationSensor
 import com.geely.ex2.range.data.store.JsonStores
+import com.geely.ex2.range.data.store.SharedJsonStore
 import com.geely.ex2.range.data.vhal.VehicleTelemetryReader
 import com.geely.ex2.range.debug.UiPreviewMock
 import com.geely.ex2.range.domain.engine.EngineView
@@ -11,8 +12,10 @@ import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.PeriodSnapshot
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.SettingsSnapshot
+import com.geely.ex2.range.domain.model.TripRecord
 import com.geely.ex2.range.domain.tracker.DriveStatsTracker
 import com.geely.ex2.range.overlay.RangeOverlayController
 import com.geely.ex2.range.BuildConfig
@@ -28,6 +31,7 @@ data class RangeUiState(
     val raw: RawTelemetry = RawTelemetry(carReady = false, connectError = null, lines = emptyList()),
     val settings: SettingsSnapshot = SettingsSnapshot(),
     val driveStats: DriveStatsView = DriveStatsView(),
+    val trips: List<TripRecord> = emptyList(),
 )
 
 class AppContainer(
@@ -36,7 +40,7 @@ class AppContainer(
 ) {
     private val appContext = context.applicationContext
     private val lock = Any()
-    private val stores = JsonStores(appContext.filesDir)
+    private val stores = JsonStores(appContext.filesDir, SharedJsonStore(appContext))
     private val engine = RangeEngine()
     private val driveStats = DriveStatsTracker()
     private val time = AndroidTimeSource()
@@ -51,6 +55,7 @@ class AppContainer(
 
     private val mockActive = BuildConfig.UI_PREVIEW_MOCK && UiPreviewMock.ENABLED
     private var lastOverlaySnapshot: OverlaySnapshot? = null
+    private var trips: List<TripRecord> = emptyList()
 
     init {
         val settings = stores.loadSettings()
@@ -58,6 +63,7 @@ class AppContainer(
         if (mockActive) {
             engine.restore(UiPreviewMock.initialCheckpoint(nowMs), settings)
             driveStats.restore(UiPreviewMock.driveStats)
+            trips = UiPreviewMock.trips
         } else {
             val period = stores.loadPeriod()
             val checkpoint = stores.loadCheckpoint()
@@ -70,10 +76,12 @@ class AppContainer(
             )).copy(period = period)
             engine.restore(restored, settings)
             driveStats.restore(stores.loadDriveStats())
+            trips = stores.loadTrips()
         }
         _uiState.value = RangeUiState(
             settings = settings,
             driveStats = driveStats.displayed(),
+            trips = trips,
         )
     }
 
@@ -163,6 +171,7 @@ class AppContainer(
             raw = raw,
             settings = settings,
             driveStats = statsView,
+            trips = trips,
         )
         syncOverlay(view)
     }
@@ -226,6 +235,23 @@ class AppContainer(
                     tripAvgSpeedKmh = view.tripAvgSpeedKmh,
                     tripAvgTempC = view.tripAvgTempC,
                 )
+                if (view.trip.distanceKm >= RangeConstants.MIN_COUNTED_TRIP_KM) {
+                    val record = TripRecord(
+                        finishedAtMs = read.tick.wallClockMs,
+                        distanceKm = view.trip.distanceKm,
+                        socStartPercent = view.tripSocStartPercent,
+                        socEndPercent = view.tripSocEndPercent,
+                        socUsedPercent = view.trip.socUsedPoints,
+                        avgSpeedKmh = view.tripAvgSpeedKmh,
+                        tempStartC = view.tripTempStartC,
+                        tempEndC = view.tripTempEndC,
+                        avgTempC = view.tripAvgTempC,
+                    )
+                    trips = (trips + record).takeLast(RangeConstants.MAX_SAVED_TRIPS)
+                    if (!mockActive) {
+                        persistScope.launch { stores.saveTrips(trips) }
+                    }
+                }
                 if (!mockActive) {
                     persistScope.launch { stores.savePeriod(period) }
                 }
@@ -275,6 +301,26 @@ class AppContainer(
             _uiState.value = current.copy(engine = current.engine)
         }
         poll()
+    }
+
+    fun deleteTrip(trip: TripRecord) {
+        synchronized(lock) {
+            trips = trips.filterNot { it.finishedAtMs == trip.finishedAtMs && it.distanceKm == trip.distanceKm }
+            if (!mockActive) {
+                persistScope.launch { stores.saveTrips(trips) }
+            }
+            _uiState.value = _uiState.value.copy(trips = trips)
+        }
+    }
+
+    fun clearTrips() {
+        synchronized(lock) {
+            trips = emptyList()
+            if (!mockActive) {
+                persistScope.launch { stores.clearTrips() }
+            }
+            _uiState.value = _uiState.value.copy(trips = trips)
+        }
     }
 
     fun setUserCapacityKwh(value: Double?) {
