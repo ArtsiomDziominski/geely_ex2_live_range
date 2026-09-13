@@ -2,16 +2,18 @@ package com.geely.ex2.range.debug
 
 import android.os.SystemClock
 import com.geely.ex2.range.data.vhal.TelemetryRead
+import com.geely.ex2.range.domain.model.BufferPoint
 import com.geely.ex2.range.domain.model.DriveStatsSnapshot
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.Gear
 import com.geely.ex2.range.domain.model.PeriodSnapshot
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RawPropertyLine
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.TelemetryTick
 import com.geely.ex2.range.domain.model.TripRecord
-import com.geely.ex2.range.domain.model.TripSnapshot
 import kotlin.math.PI
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -35,6 +37,11 @@ object UiPreviewMock {
 
     private const val CAPACITY_KWH = 39.4
     private const val ODO_START_KM = 12_480.0
+
+    /** See [seedBuffer]. */
+    private val SEED_KM = RangeConstants.WINDOW_KM_5
+    private const val SEED_STEP_KM = 0.25
+    private const val SEED_CONSUMPTION_PERCENT_PER_KM = 0.38
 
     /** Empty records — live maxes grow from parked trips if you switch scenarios later. */
     val driveStats: DriveStatsSnapshot = DriveStatsSnapshot()
@@ -119,32 +126,37 @@ object UiPreviewMock {
     private var odometerKm: Double = ODO_START_KM
 
     /**
-     * Cold start: empty period/buffer. For DRIVING, gear is already D and trip is open
-     * so the engine accumulates from the first tick (no “wait for leave P”).
+     * Cold start: empty period. For DRIVING, buffer is pre-seeded with [SEED_KM] km of synthetic
+     * “already driven” history (see [seedBuffer]) so the 5 km forecast window is READY right
+     * away instead of only after several real minutes of the mock accumulating it itself.
+     *
+     * Trip is left closed (like CHARGING) rather than pre-opened: with a non-empty buffer, an
+     * already-active trip would make [com.geely.ex2.range.domain.engine.RangeEngine.restore]
+     * flag it as a restart mid-drive (“Поездка неполная”). The real gear/trip machinery opens a
+     * fresh trip within one debounce tick (500 ms) of the first DRIVE reading — imperceptible
+     * here — so this only trades a moment.
      */
     fun initialCheckpoint(nowMs: Long): EngineCheckpoint {
         resetSession()
         val startSoc = mockSocPercent(0.0)
         return when (scenario) {
-            Scenario.DRIVING -> EngineCheckpoint(
-                period = PeriodSnapshot(
-                    distanceKm = 0.0,
-                    socUsedPoints = 0.0,
-                    updatedAtMs = nowMs,
-                    parkSessionId = null,
-                ),
-                buffer = emptyList(),
-                trip = TripSnapshot(
-                    active = true,
-                    soc0 = startSoc,
-                    km0 = 0.0,
-                    startedAtMs = nowMs,
-                    lastDistanceKm = 0.0,
-                    lastSocUsedPoints = 0.0,
-                ),
-                totalKm = 0.0,
-                lastDrivingSoc = startSoc,
-            )
+            Scenario.DRIVING -> {
+                val seed = seedBuffer(startSoc)
+                EngineCheckpoint(
+                    period = PeriodSnapshot(
+                        distanceKm = 0.0,
+                        socUsedPoints = 0.0,
+                        updatedAtMs = nowMs,
+                        parkSessionId = null,
+                    ),
+                    buffer = seed.points,
+                    trip = null,
+                    totalKm = 0.0,
+                    lastDrivingSoc = null,
+                    bufferSocConsumed = seed.consumedSocPoints,
+                    lastBufferDrivingSoc = seed.lastSocPercent,
+                )
+            }
             Scenario.CHARGING -> EngineCheckpoint(
                 period = PeriodSnapshot(
                     distanceKm = 0.0,
@@ -158,6 +170,43 @@ object UiPreviewMock {
                 lastDrivingSoc = null,
             )
         }
+    }
+
+    private class SeedBuffer(
+        val points: List<BufferPoint>,
+        val consumedSocPoints: Double,
+        val lastSocPercent: Float,
+    )
+
+    /**
+     * [SEED_KM] km of synthetic buffer history ending exactly “now” (cumulativeKm 0, SOC
+     * [startSoc]) so [com.geely.ex2.range.domain.calculation.RangeWindows] sees the 5 km window
+     * as already covered. Uses negative cumulativeKm for the past — the mock’s own live distance
+     * still starts counting from 0, unaffected.
+     */
+    private fun seedBuffer(startSoc: Float): SeedBuffer {
+        val steps = (SEED_KM / SEED_STEP_KM).roundToInt().coerceAtLeast(1)
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val nowWall = System.currentTimeMillis()
+        val stepMs = 15_000L
+        val points = ArrayList<BufferPoint>(steps + 1)
+        for (i in 0..steps) {
+            val kmAgo = SEED_KM - i * SEED_STEP_KM
+            val consumed = (SEED_KM - kmAgo) * SEED_CONSUMPTION_PERCENT_PER_KM
+            val soc = (startSoc + kmAgo * SEED_CONSUMPTION_PERCENT_PER_KM).coerceAtMost(100.0).toFloat()
+            points += BufferPoint(
+                elapsedRealtimeMs = nowElapsed - (steps - i) * stepMs,
+                wallClockMs = nowWall - (steps - i) * stepMs,
+                cumulativeKm = -kmAgo,
+                socPercent = soc,
+                speedKmh = 65f,
+                outsideTempC = 8f,
+                chargingLikely = false,
+                gap = false,
+                consumedSocPoints = consumed,
+            )
+        }
+        return SeedBuffer(points, points.last().consumedSocPoints, points.last().socPercent)
     }
 
     fun read(nowMs: Long): TelemetryRead {

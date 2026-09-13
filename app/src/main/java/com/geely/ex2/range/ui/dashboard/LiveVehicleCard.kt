@@ -34,6 +34,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.ui.components.AnimatedValue
 import com.geely.ex2.range.ui.components.MetricTile
 import com.geely.ex2.range.ui.components.NO_VALUE
@@ -135,7 +136,7 @@ private fun SocAndRange(
             }
             RangeHero(hero, rangeStyle)
         }
-        VehicleRangeComparison(hero)
+        KmUntilLowSocLine(hero, soc)
         AnimatedVisibility(visible = charging, enter = fadeIn(), exit = fadeOut()) {
             val delta = DisplayFormat.socDeltaShort(engine?.socDeltaPoints)
             StatusChip(
@@ -192,39 +193,22 @@ private fun RangeHero(hero: HeroRange, valueStyle: TextStyle) {
     }
 }
 
-/**
- * Оценка головного устройства под крупным числом — сравнение с нашим прогнозом.
- * Зелёный — прогноз выше оценки ГУ, красный — ниже.
- */
+/** Сколько км хода останется до предупреждающего порога SOC — см. [kmUntilLowSoc]. */
 @Composable
-private fun VehicleRangeComparison(hero: HeroRange) {
-    val vehicleKm = hero.vehicleKm ?: return
-    val percent = DisplayFormat.rangeDeltaPercent(hero.km, vehicleKm)
-    val label = DisplayFormat.rangeDeltaLabel(percent)
-    val extra = RangeThemeColors.extra
-    val tone = if (percent != null && percent < 0) extra.lowSoc else extra.charging
-    val vehicleText = DisplayFormat.kmNumber(vehicleKm.toDouble())
-    val description = "Оценка головного устройства ≈$vehicleText километров" +
-        if (label != null) ", разница с прогнозом $label" else ""
-    Row(
-        verticalAlignment = Alignment.Bottom,
+private fun KmUntilLowSocLine(hero: HeroRange, socPercent: Float?) {
+    val km = kmUntilLowSoc(hero, socPercent) ?: return
+    val kmText = DisplayFormat.kmNumber(km)
+    val thresholdText = RangeConstants.RESERVE_SOC_PERCENT.toInt().toString()
+    Text(
+        "≈$kmText км до $thresholdText%",
+        style = RangeTextStyles.unit,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .padding(top = Spacing.xxs)
-            .semantics { contentDescription = description },
-    ) {
-        Text(
-            "оценка ГУ ≈$vehicleText км",
-            style = RangeTextStyles.unit,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (label != null) {
-            Text(
-                " ($label)",
-                style = RangeTextStyles.unit,
-                color = tone,
-            )
-        }
-    }
+            .semantics {
+                contentDescription = "Осталось примерно $kmText километров до $thresholdText процентов заряда"
+            },
+    )
 }
 
 @Composable

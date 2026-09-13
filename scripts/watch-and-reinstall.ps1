@@ -30,8 +30,14 @@ $extraFiles = @(
 )
 
 function Get-DeviceSerial([string]$Preferred) {
-    if ($Preferred) { return $Preferred }
-    $line = (& $adb devices) | Where-Object { $_ -match "^(emulator-\d+|[\w:-]+)\s+device$" } | Select-Object -First 1
+    if ($Preferred) {
+        $alive = (& $adb devices) | Where-Object { $_ -match ("^{0}\s+device$" -f [regex]::Escape($Preferred)) }
+        if ($alive) { return $Preferred }
+    }
+    # Prefer emulator for local test watch (avoid installing userDebug onto HU).
+    $emu = (& $adb devices) | Where-Object { $_ -match "^(emulator-\d+)\s+device$" } | Select-Object -First 1
+    if ($emu) { return ($emu -split "\s+")[0] }
+    $line = (& $adb devices) | Where-Object { $_ -match "^([\w:-]+)\s+device$" } | Select-Object -First 1
     if (-not $line) { return $null }
     return ($line -split "\s+")[0]
 }

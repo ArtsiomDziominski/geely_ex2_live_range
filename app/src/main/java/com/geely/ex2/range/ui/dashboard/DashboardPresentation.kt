@@ -20,34 +20,46 @@ data class HeroRange(
     val km: Double?,
     val caption: String,
     /**
-     * Оценка головного устройства — показывается отдельной строкой под крупным числом со
-     * сравнением (см. [com.geely.ex2.range.ui.dashboard.RangeHero]). Null, если сравнивать не с
-     * чем: либо ГУ не даёт своей оценки, либо [km] сам и есть эта оценка (нечего сравнивать с собой).
+     * Среднее по готовым окнам прогноза — есть всегда, когда хоть одно окно готово (равно [km] в
+     * этом случае, так как прогноз и есть крупное число). Null, если ни одно окно ещё не готово.
+     * Используется для [kmUntilLowSoc].
      */
-    val vehicleKm: Float?,
+    val forecastAverageKm: Double?,
 )
 
 /**
- * Крупный запас хода на главной — среднее по всем готовым окнам (5/15/30 км разом, не одно
- * предпочтительное), иначе оценка ГУ, иначе «нет данных».
+ * Крупный запас хода на главной — среднее по всем готовым окнам прогноза (одно окно — само его
+ * значение, несколько — среднее между ними), иначе оценка головного устройства, иначе «нет данных».
  */
 fun heroRange(engine: EngineView?): HeroRange {
     if (engine == null) return HeroRange(null, "Запас хода — нет данных", null)
     val ready = engine.windows
         .filter { it.status == WindowStatus.READY }
         .mapNotNull { it.rangeTo0Km }
-    val vehicle = engine.vehicleRangeRemainingKm?.takeIf { it.isFinite() && it > 0f }
     if (ready.isNotEmpty()) {
-        return HeroRange(
-            km = ready.average(),
-            caption = "Запас хода · среднее по окнам",
-            vehicleKm = vehicle,
-        )
+        val average = ready.average()
+        return HeroRange(km = average, caption = "Запас хода · среднее по окнам", forecastAverageKm = average)
     }
+    val vehicle = engine.vehicleRangeRemainingKm?.takeIf { it.isFinite() && it > 0f }
     if (vehicle != null) {
-        return HeroRange(km = vehicle.toDouble(), caption = "Запас хода · оценка ГУ", vehicleKm = null)
+        return HeroRange(km = vehicle.toDouble(), caption = "Запас хода · оценка ГУ", forecastAverageKm = null)
     }
     return HeroRange(null, "Запас хода — нет данных", null)
+}
+
+/**
+ * Сколько км хода останется, когда заряд дойдёт до предупреждающего порога
+ * ([RangeConstants.RESERVE_SOC_PERCENT] — после него индикатор батареи желтеет/краснеет).
+ * Считаем линейно от среднего по прогнозу ([HeroRange.forecastAverageKm], а не от оценки ГУ —
+ * это наш собственный расчёт км на % SOC, поэтому и порог по SOC масштабируем через него)
+ * и текущего SOC. Null, если прогноз ещё не готов или заряд уже на пороге/ниже.
+ */
+fun kmUntilLowSoc(hero: HeroRange, socPercent: Float?): Double? {
+    val km = hero.forecastAverageKm?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    val soc = socPercent?.takeIf { it.isFinite() }?.toDouble() ?: return null
+    val threshold = RangeConstants.RESERVE_SOC_PERCENT
+    if (soc <= threshold) return null
+    return km * (soc - threshold) / soc
 }
 
 /** Подсказка под расходом текущей поездки — состояния движка сохранены дословно. */
