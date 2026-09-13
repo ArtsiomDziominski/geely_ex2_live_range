@@ -28,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.RangeConstants
@@ -62,7 +61,7 @@ fun ForecastResult(
         ) {
             ForecastValue(
                 value = DisplayFormat.kmNumber(window.rangeTo0Km),
-                caption = "до 0% SOC",
+                caption = "до 0%",
                 emphasized = true,
                 description = "Прогноз до нуля процентов: " +
                     DisplayFormat.kmNumber(window.rangeTo0Km) + " километров",
@@ -79,7 +78,7 @@ fun ForecastResult(
                 caption = if (reserveSpent) {
                     "резерв пройден"
                 } else {
-                    "до резерва " + RangeConstants.RESERVE_SOC_PERCENT.toInt() + "%"
+                    "до " + RangeConstants.RESERVE_SOC_PERCENT.toInt() + "%"
                 },
                 emphasized = false,
                 description = if (reserveSpent) {
@@ -110,40 +109,39 @@ private fun ForecastValue(
     description: String,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .clearAndSetSemantics { contentDescription = description },
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                "≈",
-                style = RangeTextStyles.unit,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 2.dp, bottom = 4.dp),
-            )
-            AnimatedValue(
-                value = value,
-                style = if (emphasized) RangeTextStyles.forecastValue else RangeTextStyles.statValue,
-                color = if (emphasized) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            )
-            Text(
-                "км",
-                style = RangeTextStyles.unit,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = Spacing.xxs, bottom = 4.dp),
-            )
-        }
         Text(
             caption,
             style = RangeTextStyles.caption,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(end = Spacing.xs, bottom = 4.dp),
+        )
+        Text(
+            "≈",
+            style = RangeTextStyles.unit,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 2.dp, bottom = 4.dp),
+        )
+        AnimatedValue(
+            value = value,
+            style = if (emphasized) RangeTextStyles.forecastValue else RangeTextStyles.statValue,
+            color = if (emphasized) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+        Text(
+            "км",
+            style = RangeTextStyles.unit,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = Spacing.xxs, bottom = 4.dp),
         )
     }
 }
@@ -167,7 +165,7 @@ private fun VehicleComparison(
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            "ГУ " + DisplayFormat.km(vehicleRangeRemainingKm.toDouble(), digits = 0),
+            DisplayFormat.km(vehicleRangeRemainingKm.toDouble(), digits = 0),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -181,7 +179,7 @@ private fun VehicleComparison(
             )
             Spacer(Modifier.width(Spacing.xxs))
             Text(
-                deltaLabel + " от ГУ",
+                deltaLabel,
                 style = MaterialTheme.typography.labelLarge,
                 color = toneColor,
                 modifier = Modifier.clearAndSetSemantics {
