@@ -122,17 +122,19 @@ fun TripsScreen(
         ),
         verticalArrangement = Arrangement.spacedBy(layout.sectionGap),
     ) {
-        item(key = "records") {
+        // contentType: при прокрутке и листании страниц карточка поездки переиспользует слот
+        // другой карточки поездки (обновляются только значения), а не компонуется с нуля.
+        item(key = "records", contentType = "records") {
             ChargeCycleRecordCard(state.driveStats)
         }
 
         state.currentTrip?.let { current ->
-            item(key = "current") {
+            item(key = "current", contentType = "current") {
                 CurrentTripCard(current)
             }
         }
 
-        item(key = "filter") {
+        item(key = "filter", contentType = "filter") {
             TripsFilterRow(
                 selectedDateMillis = selectedDateMillis,
                 onOpenPicker = { showDatePicker = true },
@@ -144,7 +146,7 @@ fun TripsScreen(
         }
 
         if (filteredTrips.isEmpty()) {
-            item(key = "empty") {
+            item(key = "empty", contentType = "empty") {
                 Text(
                     if (state.trips.isEmpty()) {
                         "Поездок ещё нет — едем, первая появится тут после парковки"
@@ -159,11 +161,15 @@ fun TripsScreen(
                 )
             }
         } else {
-            items(pagedTrips, key = { "${it.finishedAtMs}-${it.distanceKm}" }) { trip ->
+            items(
+                pagedTrips,
+                key = { "${it.finishedAtMs}-${it.distanceKm}" },
+                contentType = { "trip" },
+            ) { trip ->
                 TripCard(trip, onDelete = { pendingDeleteTrip = trip })
             }
             if (totalPages > 1) {
-                item(key = "pager") {
+                item(key = "pager", contentType = "pager") {
                     TripsPager(
                         page = safePage,
                         totalPages = totalPages,
