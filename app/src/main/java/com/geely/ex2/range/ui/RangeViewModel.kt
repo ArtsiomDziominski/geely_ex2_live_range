@@ -103,8 +103,11 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Контейнер берёт тот же lock, что и опрос VHAL (блокирующий Binder), — не ждём его на главном потоке. */
     fun setThemeMode(mode: AppThemeMode) {
-        container.setThemeMode(mode)
+        viewModelScope.launch(Dispatchers.Default) {
+            container.setThemeMode(mode)
+        }
     }
 
     fun clearPendingOverlayEnable() {
@@ -112,11 +115,15 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteTrip(trip: TripRecord) {
-        container.deleteTrip(trip)
+        viewModelScope.launch(Dispatchers.Default) {
+            container.deleteTrip(trip)
+        }
     }
 
     fun clearTrips() {
-        container.clearTrips()
+        viewModelScope.launch(Dispatchers.Default) {
+            container.clearTrips()
+        }
     }
 }
 

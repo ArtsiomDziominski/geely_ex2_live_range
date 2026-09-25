@@ -32,14 +32,18 @@ fun RangeOverlayContent(
     charging: Boolean,
     vehicleRangeRemainingKm: Float?,
     onDrag: (dx: Float, dy: Float) -> Unit,
+    onDragEnd: () -> Unit,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(24.dp)
     Row(
         modifier = Modifier
             .wrapContentSize(unbounded = true)
-            .pointerInput(onDrag) {
-                detectDragGesturesAfterLongPress { change, dragAmount ->
+            .pointerInput(onDrag, onDragEnd) {
+                detectDragGesturesAfterLongPress(
+                    onDragEnd = onDragEnd,
+                    onDragCancel = onDragEnd,
+                ) { change, dragAmount ->
                     change.consume()
                     onDrag(dragAmount.x, dragAmount.y)
                 }

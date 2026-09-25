@@ -76,6 +76,7 @@ class RangeOverlayController(
                             charging = charging,
                             vehicleRangeRemainingKm = vehicleRangeRemainingKm,
                             onDrag = ::moveBy,
+                            onDragEnd = ::commitPosition,
                             onClick = onOpenApp,
                         )
                     }
@@ -122,7 +123,16 @@ class RangeOverlayController(
         windowManager.updateViewLayout(view, params)
         savedX = params.x
         savedY = params.y
-        onPositionChanged(params.x, params.y)
+    }
+
+    /**
+     * Позицию сохраняем один раз, когда палец отпустили. На каждом движении это означало запись
+     * настроек на диск и ожидание общего lock (его держит опрос VHAL) прямо на главном потоке.
+     */
+    private fun commitPosition() {
+        val x = savedX ?: return
+        val y = savedY ?: return
+        onPositionChanged(x, y)
     }
 
     private fun show() {
