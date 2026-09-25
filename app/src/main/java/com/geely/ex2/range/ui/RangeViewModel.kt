@@ -121,7 +121,7 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 private fun dashboardState(state: RangeUiState) = DashboardUiState(
-    engine = state.engine,
+    engine = state.engine?.withoutBookkeeping(),
     connectError = state.raw.connectError,
     carReady = state.raw.carReady,
 )
@@ -134,9 +134,17 @@ private fun tripsState(state: RangeUiState) = TripsUiState(
 
 private fun helpState(state: RangeUiState) = HelpUiState(
     usableCapacityKwh = state.settings.usableCapacityKwh,
-    engine = state.engine,
+    engine = state.engine?.withoutBookkeeping(),
     raw = state.raw,
 )
+
+/**
+ * Служебные поля движка — флаги «пора сохранить» и длительность поездки — меняются каждый тик,
+ * даже на стоянке, а на экран не выводятся. Обнуляем их, чтобы равенство состояний отсекало
+ * тики без видимых изменений и экран не перекомпоновывался раз в секунду впустую.
+ */
+private fun EngineView.withoutBookkeeping(): EngineView =
+    copy(tripDurationMs = null, persistPeriod = false, persistBuffer = false)
 
 /** Non-null only while actually driving (left P, not parked) — the trip not yet saved to history. */
 private fun currentTripView(view: EngineView): ActiveTripView? {
