@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.geely.ex2.range.app.RangeApplication
+import com.geely.ex2.range.app.RangeUiState
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.model.ActiveTripView
 import com.geely.ex2.range.domain.model.AppThemeMode
@@ -15,7 +16,6 @@ import com.geely.ex2.range.domain.model.TripRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -44,55 +44,21 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     private val container = (application as RangeApplication).container
     val uiState = container.uiState
 
-    val settings: StateFlow<SettingsSnapshot> = uiState
-        .map { it.settings }
-        .distinctUntilChanged()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = uiState.value.settings,
-        )
+    val settings: StateFlow<SettingsSnapshot> = uiState.screenState { it.settings }
+    val dashboard: StateFlow<DashboardUiState> = uiState.screenState(::dashboardState)
+    val trips: StateFlow<TripsUiState> = uiState.screenState(::tripsState)
+    val help: StateFlow<HelpUiState> = uiState.screenState(::helpState)
 
-    val dashboard: StateFlow<DashboardUiState> = uiState
-        .map {
-            DashboardUiState(
-                engine = it.engine,
-                connectError = it.raw.connectError,
-                carReady = it.raw.carReady,
-            )
-        }
-        .stateIn(
+    /**
+     * Состояние одного экрана из общего. Начальное значение считается из текущего состояния, а не
+     * пустое: первый кадр вкладки сразу с данными, без лишней перекомпоновки «скелет → данные».
+     * StateFlow отбрасывает равные значения — тики без видимых изменений до экрана не доходят.
+     */
+    private fun <T> StateFlow<RangeUiState>.screenState(transform: (RangeUiState) -> T): StateFlow<T> =
+        map { transform(it) }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = DashboardUiState(),
-        )
-
-    val trips: StateFlow<TripsUiState> = uiState
-        .map {
-            TripsUiState(
-                driveStats = it.driveStats,
-                trips = it.trips,
-                currentTrip = it.engine?.let(::currentTripView),
-            )
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = TripsUiState(),
-        )
-
-    val help: StateFlow<HelpUiState> = uiState
-        .map {
-            HelpUiState(
-                usableCapacityKwh = it.settings.usableCapacityKwh,
-                engine = it.engine,
-                raw = it.raw,
-            )
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = HelpUiState(),
+            initialValue = transform(value),
         )
 
     private var pendingOverlayEnable = false
@@ -153,6 +119,24 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
         container.clearTrips()
     }
 }
+
+private fun dashboardState(state: RangeUiState) = DashboardUiState(
+    engine = state.engine,
+    connectError = state.raw.connectError,
+    carReady = state.raw.carReady,
+)
+
+private fun tripsState(state: RangeUiState) = TripsUiState(
+    driveStats = state.driveStats,
+    trips = state.trips,
+    currentTrip = state.engine?.let(::currentTripView),
+)
+
+private fun helpState(state: RangeUiState) = HelpUiState(
+    usableCapacityKwh = state.settings.usableCapacityKwh,
+    engine = state.engine,
+    raw = state.raw,
+)
 
 /** Non-null only while actually driving (left P, not parked) — the trip not yet saved to history. */
 private fun currentTripView(view: EngineView): ActiveTripView? {

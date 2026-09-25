@@ -7,6 +7,8 @@ import android.provider.Settings
 import android.view.SoundEffectConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -97,7 +99,6 @@ private val Destinations = listOf(
 fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 0) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val navController = rememberNavController()
-    val route = navController.currentBackStackEntryAsState().value?.destination?.route
     val context = LocalContext.current
     val view = LocalView.current
     var showAppInfo by remember { mutableStateOf(false) }
@@ -128,7 +129,9 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
     }
 
     fun navigateTab(destination: String) {
-        if (route == destination) return
+        // Маршрут читаем в момент нажатия, а не подпиской в RangeApp: иначе каждая смена вкладки
+        // перекомпоновывала бы весь каркас (Scaffold, TopAppBar), а не только панель навигации.
+        if (navController.currentDestination?.route == destination) return
         view.playSoundEffect(SoundEffectConstants.CLICK)
         navController.navigate(destination) {
             launchSingleTop = true
@@ -206,21 +209,10 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                 },
                 bottomBar = {
                     if (!layout.useNavigationRail) {
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                            Destinations.forEach { destination ->
-                                val selected = route == destination.route
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = { navigateTab(destination.route) },
-                                    icon = {
-                                        Icon(
-                                            if (selected) destination.selectedIcon else destination.icon,
-                                            contentDescription = destination.label,
-                                        )
-                                    },
-                                )
-                            }
-                        }
+                        RangeNavigationBar(
+                            navController = navController,
+                            onNavigate = { destination -> navigateTab(destination) },
+                        )
                     }
                 },
             ) { innerPadding ->
@@ -231,21 +223,10 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                         .padding(bottom = fallbackBottom),
                 ) {
                     if (layout.useNavigationRail) {
-                        NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
-                            Destinations.forEach { destination ->
-                                val selected = route == destination.route
-                                NavigationRailItem(
-                                    selected = selected,
-                                    onClick = { navigateTab(destination.route) },
-                                    icon = {
-                                        Icon(
-                                            if (selected) destination.selectedIcon else destination.icon,
-                                            contentDescription = destination.label,
-                                        )
-                                    },
-                                )
-                            }
-                        }
+                        RangeNavigationRail(
+                            navController = navController,
+                            onNavigate = { destination -> navigateTab(destination) },
+                        )
                     }
                     RangeNavHost(
                         navController = navController,
@@ -263,6 +244,52 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
     }
 }
 
+/** Нижняя панель вкладок (узкое окно). Текущий маршрут читается только здесь. */
+@Composable
+private fun RangeNavigationBar(
+    navController: NavHostController,
+    onNavigate: (String) -> Unit,
+) {
+    val route = navController.currentBackStackEntryAsState().value?.destination?.route
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+        Destinations.forEach { destination ->
+            val selected = route == destination.route
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onNavigate(destination.route) },
+                icon = { DestinationIcon(destination, selected) },
+            )
+        }
+    }
+}
+
+/** Боковая панель вкладок (широкое окно, ГУ). Текущий маршрут читается только здесь. */
+@Composable
+private fun RangeNavigationRail(
+    navController: NavHostController,
+    onNavigate: (String) -> Unit,
+) {
+    val route = navController.currentBackStackEntryAsState().value?.destination?.route
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+        Destinations.forEach { destination ->
+            val selected = route == destination.route
+            NavigationRailItem(
+                selected = selected,
+                onClick = { onNavigate(destination.route) },
+                icon = { DestinationIcon(destination, selected) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DestinationIcon(destination: Destination, selected: Boolean) {
+    Icon(
+        if (selected) destination.selectedIcon else destination.icon,
+        contentDescription = destination.label,
+    )
+}
+
 @Composable
 private fun RangeNavHost(
     navController: NavHostController,
@@ -275,6 +302,11 @@ private fun RangeNavHost(
         navController = navController,
         startDestination = ROUTE_DASHBOARD,
         modifier = modifier,
+        // Вкладки меняются мгновенно. По умолчанию NavHost 700 мс кросс-фейдит экраны, и всё это
+        // время старый и новый экран компонуются и рисуются одновременно — на ГУ это и было
+        // «задержкой при переключении». pop-переходы по умолчанию берутся отсюда же.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
     ) {
         composable(ROUTE_DASHBOARD) {
             val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
