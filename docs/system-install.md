@@ -39,6 +39,21 @@ adb push install/out/geely-ex2-range-system-platform-signed.apk /data/local/tmp/
 adb shell pm install -r -g /data/local/tmp/geely-ex2-range-system.apk
 ```
 
+### Предкомпиляция — после каждой установки
+
+`pm install` не компилирует код заранее, а фоновая компиляция (bg-dexopt) запускается только
+в простое устройства — на ГУ её может не быть вовсе. Тогда Compose работает в интерпретаторе/JIT,
+и интерфейс заметно тормозит при переключении вкладок и скролле. Компилируем сразу:
+
+```text
+adb shell cmd package compile -m speed -f com.geely.ex2.range
+adb shell am force-stop com.geely.ex2.range
+adb shell am start -n com.geely.ex2.range/.ui.MainActivity
+```
+
+`force-stop` нужен потому, что сразу после установки `MY_PACKAGE_REPLACED` уже запустил сервис
+со старым (некомпилированным) кодом — новый код подхватится только новым процессом.
+
 При установке в `/system/priv-app/` дополнительно:
 
 `install/privapp-permissions-com.geely.ex2.range.xml` → `/system/etc/permissions/`

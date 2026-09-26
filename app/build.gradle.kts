@@ -49,7 +49,9 @@ android {
             buildConfigField("boolean", "UI_PREVIEW_MOCK", "true")
         }
         release {
-            isMinifyEnabled = false
+            // R8 обязателен для скорости Compose: без него рантайм Compose работает заметно
+            // медленнее. Имена не обфусцируются (см. proguard-rules.pro) — логи ГУ читаемы.
+            isMinifyEnabled = true
             buildConfigField("boolean", "UI_PREVIEW_MOCK", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

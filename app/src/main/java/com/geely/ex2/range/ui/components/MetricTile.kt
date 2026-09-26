@@ -1,9 +1,6 @@
 package com.geely.ex2.range.ui.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,9 +17,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -101,7 +104,16 @@ fun MetricTile(
     }
 }
 
-/** Плавная смена числа: короткий кросс-фейд вместо резкого скачка. */
+private const val VALUE_FADE_FROM_ALPHA = 0.35f
+private const val VALUE_FADE_MS = 180
+
+/**
+ * Плавная смена числа: новое значение коротко проявляется вместо резкого скачка.
+ *
+ * Анимируется только альфа слоя в фазе отрисовки. Раньше здесь был AnimatedContent: на каждый тик
+ * телеметрии он компоновал старое и новое значение и ~0,5 с анимировал размер (SizeTransform),
+ * перемеряя всю карточку с её IntrinsicSize-рядами на каждом кадре. Первое значение — без анимации.
+ */
 @Composable
 fun AnimatedValue(
     value: String,
@@ -109,22 +121,22 @@ fun AnimatedValue(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSurface,
 ) {
-    AnimatedContent(
-        targetState = value,
-        transitionSpec = {
-            fadeIn(tween(180)) togetherWith fadeOut(tween(120))
-        },
-        label = "metric-value",
-        modifier = modifier,
-    ) { shown ->
-        Text(
-            shown,
-            style = style,
-            color = color,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    val fade = remember { Animatable(1f) }
+    var lastShown by remember { mutableStateOf(value) }
+    LaunchedEffect(value) {
+        if (value == lastShown) return@LaunchedEffect
+        lastShown = value
+        fade.snapTo(VALUE_FADE_FROM_ALPHA)
+        fade.animateTo(1f, tween(VALUE_FADE_MS))
     }
+    Text(
+        value,
+        style = style,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier.graphicsLayer { alpha = fade.value },
+    )
 }
 
 /** Небольшой цветной чип со статусом (зарядка, предупреждение и т. п.). */

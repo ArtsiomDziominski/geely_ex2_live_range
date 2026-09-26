@@ -236,7 +236,11 @@ class AppContainer(
                 return
             }
             val view = engine.onTick(read.tick)
-            val checkpoint = engine.checkpoint(read.tick.wallClockMs)
+            // Снимок копирует весь буфер окон (до 20 000 точек) — строим его только на тиках,
+            // где он реально сохраняется, а не каждую секунду. До него движок не меняется.
+            val checkpoint by lazy(LazyThreadSafetyMode.NONE) {
+                engine.checkpoint(read.tick.wallClockMs)
+            }
             if (view.persistPeriod) {
                 val period = checkpoint.period
                 driveStats.onParked(

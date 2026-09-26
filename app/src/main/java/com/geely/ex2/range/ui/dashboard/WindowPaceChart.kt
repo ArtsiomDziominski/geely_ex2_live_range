@@ -85,6 +85,9 @@ fun WindowPaceChart(
     Column(modifier = modifier.fillMaxWidth()) {
         AnimatedContent(
             targetState = selected,
+            // Кросс-фейд только при появлении/снятии выбора. На ходу точки графика сдвигаются
+            // каждый тик — значения под выбранной точкой просто обновляются, без анимации.
+            contentKey = { it != null },
             transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) },
             label = "chart-header",
         ) { point ->
