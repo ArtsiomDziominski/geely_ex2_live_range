@@ -12,6 +12,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -220,6 +221,10 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                     Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
+                        // Системные панели уже учтены в innerPadding. Без consume NavigationRail
+                        // добавлял свои инсеты второй раз, и на ГУ с верхней/нижней панелью
+                        // нижние вкладки уезжали за край.
+                        .consumeWindowInsets(innerPadding)
                         .padding(bottom = fallbackBottom),
                 ) {
                     if (layout.useNavigationRail) {
