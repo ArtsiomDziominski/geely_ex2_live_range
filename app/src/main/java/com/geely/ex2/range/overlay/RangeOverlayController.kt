@@ -1,62 +1,94 @@
 package com.geely.ex2.range.overlay
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
+import android.util.DisplayMetrics
+import android.util.Size
 import android.view.Gravity
+import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.wrapContentSize
+import android.view.animation.DecelerateInterpolator
+import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.geely.ex2.range.domain.model.AppThemeMode
+import com.geely.ex2.range.domain.model.OverlayEdge
+import com.geely.ex2.range.domain.model.OverlayPlacement
 import com.geely.ex2.range.domain.model.RangeWindow
 import com.geely.ex2.range.ui.theme.RangeTheme
-import com.geely.ex2.range.ui.theme.resolveDarkTheme
 import kotlin.math.roundToInt
 
+/**
+ * Окно виджета поверх других приложений. Панель всегда прижата к левому или правому краю:
+ * её можно тянуть вдоль края и перетащить к другому (отпущенная — доезжает до ближнего края),
+ * спрятать в язычок и вернуть. Место и свёрнутость отдаются в [onPlacementChanged] для настроек.
+ */
 class RangeOverlayController(
     private val context: Context,
-    private val onPositionChanged: (x: Int, y: Int) -> Unit,
+    private val onPlacementChanged: (OverlayPlacement) -> Unit,
     private val onOpenApp: () -> Unit,
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private var composeView: ComposeView? = null
+    private var rootView: OverlayRootLayout? = null
     private var viewTreeOwner: OverlayViewTreeOwner? = null
     private var attached = false
     private var enabled = false
-    private var savedX: Int? = null
-    private var savedY: Int? = null
+    private var snapAnimator: ValueAnimator? = null
+
+    /** Желаемый сдвиг от центра экрана; на экран окно ставится с поправкой на свою высоту. */
+    private var offsetY = 0
+    private var dragStart = DockPosition(OverlayEdge.RIGHT, 0f, 0f)
+    private var dragScreen = Size(0, 0)
 
     private var windows by mutableStateOf<List<RangeWindow>>(emptyList())
     private var charging by mutableStateOf(false)
     private var vehicleRangeRemainingKm by mutableStateOf<Float?>(null)
-    private var appThemeMode by mutableStateOf(AppThemeMode.SYSTEM)
+    private var edge by mutableStateOf(OverlayEdge.RIGHT)
+    private var collapsed by mutableStateOf(false)
+    private var detailsWindowKm by mutableStateOf<Double?>(null)
+
+    private val rootListener = object : OverlayRootLayout.Listener {
+        override fun onDragStart() = startDrag()
+
+        override fun onDrag(dx: Float, dy: Float) = dragBy(dx, dy)
+
+        override fun onDragEnd() = snapToEdge()
+
+        override fun onOutsideTouch() = showDetails(null)
+
+        override fun onConfigurationChanged() {
+            // Экран повернули — новые размеры окна и экрана будут после раскладки.
+            rootView?.post { keepOnScreen() }
+        }
+    }
 
     fun canDraw(): Boolean {
         return Settings.canDrawOverlays(context)
     }
 
-    fun setSavedPosition(x: Int?, y: Int?) {
-        savedX = x
-        savedY = y
-        val view = composeView ?: return
-        if (view.parent == null || x == null || y == null) return
-        val params = view.layoutParams as WindowManager.LayoutParams
-        params.x = x
-        params.y = y
+    /** Место из настроек — задаётся при старте, дальше виджет ведёт его сам. */
+    fun setPlacement(placement: OverlayPlacement) {
+        edge = placement.edge
+        offsetY = placement.offsetY
+        collapsed = placement.collapsed
+        val view = rootView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        if (view.parent == null) return
+        params.gravity = gravityFor(edge)
+        params.x = 0
+        params.y = offsetY
         windowManager.updateViewLayout(view, params)
-    }
-
-    fun setThemeMode(mode: AppThemeMode) {
-        appThemeMode = mode
+        keepOnScreen()
     }
 
     fun attach() {
@@ -64,26 +96,40 @@ class RangeOverlayController(
         attached = true
         val owner = OverlayViewTreeOwner()
         viewTreeOwner = owner
-        val view = ComposeView(context).apply {
-            setViewTreeLifecycleOwner(owner)
-            setViewTreeSavedStateRegistryOwner(owner)
+        val composeView = ComposeView(context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
-                RangeTheme(darkTheme = resolveDarkTheme(appThemeMode)) {
-                    Box(Modifier.wrapContentSize(unbounded = true)) {
-                        RangeOverlayContent(
-                            windows = windows,
-                            charging = charging,
-                            vehicleRangeRemainingKm = vehicleRangeRemainingKm,
-                            onDrag = ::moveBy,
-                            onDragEnd = ::commitPosition,
-                            onClick = onOpenApp,
-                        )
-                    }
+                // Панель всегда тёмная, как у края экрана, — от темы приложения не зависит.
+                RangeTheme(darkTheme = true) {
+                    RangeOverlayContent(
+                        windows = windows,
+                        charging = charging,
+                        vehicleRangeRemainingKm = vehicleRangeRemainingKm,
+                        edge = edge,
+                        collapsed = collapsed,
+                        detailsWindowKm = detailsWindowKm,
+                        onWindowClick = ::toggleDetails,
+                        onDismissDetails = { showDetails(null) },
+                        onCollapsedChange = ::changeCollapsed,
+                        onOpenApp = ::openApp,
+                    )
                 }
             }
         }
-        composeView = view
+        rootView = OverlayRootLayout(context, rootListener).apply {
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            addView(
+                composeView,
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+            // Панель развернули/спрятали или открыли подробности — окно сменило размер.
+            addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
+                    post { keepOnScreen() }
+                }
+            }
+        }
     }
 
     fun setEnabled(enabled: Boolean) {
@@ -107,85 +153,182 @@ class RangeOverlayController(
         hide()
         viewTreeOwner?.destroy()
         viewTreeOwner = null
-        composeView = null
+        rootView = null
         attached = false
         enabled = false
     }
 
-    private fun moveBy(dx: Float, dy: Float) {
-        val view = composeView ?: return
+    private fun startDrag() {
+        val view = rootView ?: return
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-        val metrics = context.resources.displayMetrics
-        val maxX = (metrics.widthPixels - view.width).coerceAtLeast(0)
-        val maxY = (metrics.heightPixels - view.height).coerceAtLeast(0)
-        params.x = (params.x + dx.roundToInt()).coerceIn(0, maxX)
-        params.y = (params.y + dy.roundToInt()).coerceIn(0, maxY)
+        cancelSnap()
+        showDetails(null)
+        dragScreen = screenSize()
+        dragStart = DockPosition(edge, params.x.toFloat(), params.y.toFloat())
+    }
+
+    private fun dragBy(dx: Float, dy: Float) {
+        val view = rootView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        if (view.parent == null) return
+        val position = dragStart.moveBy(dx, dy, view.width, view.height, dragScreen.width, dragScreen.height)
+        edge = position.edge
+        offsetY = position.offsetY.roundToInt()
+        params.gravity = gravityFor(position.edge)
+        params.x = position.x.roundToInt()
+        params.y = offsetY
         windowManager.updateViewLayout(view, params)
-        savedX = params.x
-        savedY = params.y
+    }
+
+    /** Отпустили — панель доезжает до своего края, и место запоминается. */
+    private fun snapToEdge() {
+        val view = rootView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        if (view.parent == null || params.x == 0) {
+            commitPlacement()
+            return
+        }
+        snapAnimator = ValueAnimator.ofInt(params.x, 0).apply {
+            duration = SNAP_DURATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                if (view.parent != null) {
+                    params.x = animator.animatedValue as Int
+                    windowManager.updateViewLayout(view, params)
+                }
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                private var cancelled = false
+
+                override fun onAnimationCancel(animation: Animator) {
+                    cancelled = true
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (snapAnimator === animation) snapAnimator = null
+                    if (!cancelled) commitPlacement()
+                }
+            })
+            start()
+        }
+    }
+
+    private fun toggleDetails(windowKm: Double) {
+        showDetails(if (detailsWindowKm == windowKm) null else windowKm)
     }
 
     /**
-     * Позицию сохраняем один раз, когда палец отпустили. На каждом движении это означало запись
-     * настроек на диск и ожидание общего lock (его держит опрос VHAL) прямо на главном потоке.
+     * Открывает или закрывает подробности по окну. Пока они открыты, окну приходят касания мимо
+     * него — по ним подробности закрываются, как обычная всплывающая подсказка.
      */
-    private fun commitPosition() {
-        val x = savedX ?: return
-        val y = savedY ?: return
-        onPositionChanged(x, y)
+    private fun showDetails(windowKm: Double?) {
+        detailsWindowKm = windowKm
+        val view = rootView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        if (view.parent == null) return
+        val flags = if (windowKm != null) {
+            params.flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+        } else {
+            params.flags and WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv()
+        }
+        if (flags != params.flags) {
+            params.flags = flags
+            windowManager.updateViewLayout(view, params)
+        }
+    }
+
+    private fun changeCollapsed(collapsed: Boolean) {
+        showDetails(null)
+        if (this.collapsed == collapsed) return
+        this.collapsed = collapsed
+        commitPlacement()
+    }
+
+    private fun openApp() {
+        showDetails(null)
+        onOpenApp()
+    }
+
+    private fun commitPlacement() {
+        onPlacementChanged(OverlayPlacement(edge = edge, offsetY = offsetY, collapsed = collapsed))
+    }
+
+    /**
+     * Окно или экран сменили размер — окно не должно вылезать за экран. Желаемый [offsetY] при
+     * этом не трогаем: спрятанный у самого низа язычок после разворота панели вернётся на место.
+     */
+    private fun keepOnScreen() {
+        val view = rootView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        if (view.parent == null) return
+        val y = clampOffsetY(offsetY.toFloat(), view.height, screenSize().height).roundToInt()
+        if (y != params.y) {
+            params.y = y
+            windowManager.updateViewLayout(view, params)
+        }
+    }
+
+    private fun cancelSnap() {
+        snapAnimator?.cancel()
+        snapAnimator = null
     }
 
     private fun show() {
         if (!canDraw()) return
-        val view = composeView ?: return
+        val view = rootView ?: return
         if (view.parent != null) return
-        val params = layoutParams()
-        if (savedX != null && savedY != null) {
-            params.x = savedX!!
-            params.y = savedY!!
-        }
-        windowManager.addView(view, params)
-        if (savedX == null || savedY == null) {
-            view.post { alignDefaultTopEnd(view) }
-        }
-    }
-
-    private fun alignDefaultTopEnd(view: ComposeView) {
-        if (view.parent == null) return
-        val params = view.layoutParams as WindowManager.LayoutParams
-        val metrics = context.resources.displayMetrics
-        val margin = (24 * metrics.density).roundToInt()
-        val top = (96 * metrics.density).roundToInt()
-        params.x = (metrics.widthPixels - view.width - margin).coerceAtLeast(0)
-        params.y = top
-        windowManager.updateViewLayout(view, params)
-        savedX = params.x
-        savedY = params.y
-        onPositionChanged(params.x, params.y)
+        windowManager.addView(view, layoutParams())
     }
 
     private fun hide() {
-        val view = composeView ?: return
+        cancelSnap()
+        detailsWindowKm = null
+        val view = rootView ?: return
         if (view.parent == null) return
         windowManager.removeView(view)
     }
 
-    private fun layoutParams(): WindowManager.LayoutParams {
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
+    /**
+     * Область, в которой WindowManager ставит окно: экран без системных панелей — за них
+     * окно по умолчанию не заходит, и центр по вертикали он считает по ней же.
+     */
+    private fun screenSize(): Size {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager.currentWindowMetrics
+            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
+            val bounds = metrics.bounds
+            return Size(
+                bounds.width() - insets.left - insets.right,
+                bounds.height() - insets.top - insets.bottom,
+            )
         }
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        return Size(metrics.widthPixels, metrics.heightPixels)
+    }
+
+    private fun layoutParams(): WindowManager.LayoutParams {
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
+            gravity = gravityFor(edge)
+            x = 0
+            y = offsetY
         }
+    }
+
+    private fun gravityFor(edge: OverlayEdge): Int {
+        val horizontal = if (edge == OverlayEdge.LEFT) Gravity.LEFT else Gravity.RIGHT
+        return horizontal or Gravity.CENTER_VERTICAL
+    }
+
+    private companion object {
+        const val SNAP_DURATION_MS = 220L
     }
 }

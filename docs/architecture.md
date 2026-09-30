@@ -5,6 +5,7 @@ Package `com.geely.ex2.range`. Compose-страницы, расчёты в чи�
 ```text
 ui/                  Compose: Главная, Статистика, Справка, Настройки, ViewModel
 ui/layout/           ScreenMetrics — масштаб от эталона 1920×1040 под реальное окно
+overlay/             виджет поверх окон: панель у края экрана (WindowManager + ComposeView)
 service/             Foreground service (specialUse) + BootReceiver
 app/                 Application, AppContainer, TimeSource
 data/vhal/           CarClient (reflection), VehicleTelemetryReader, VhalIds

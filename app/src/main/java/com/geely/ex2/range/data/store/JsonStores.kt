@@ -4,6 +4,8 @@ import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.BufferPoint
 import com.geely.ex2.range.domain.model.DriveStatsSnapshot
 import com.geely.ex2.range.domain.model.EngineCheckpoint
+import com.geely.ex2.range.domain.model.OverlayEdge
+import com.geely.ex2.range.domain.model.OverlayPlacement
 import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.SettingsSnapshot
@@ -32,15 +34,19 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             ?: RangeConstants.EX2_DEFAULT_USABLE_CAPACITY_KWH
         val reserve = json.optDouble("reserveSocPercent", RangeConstants.RESERVE_SOC_PERCENT)
         val overlayEnabled = json.optBoolean("overlayEnabled", false)
-        val overlayX = json.optInt("overlayX").takeIf { json.has("overlayX") && !json.isNull("overlayX") }
-        val overlayY = json.optInt("overlayY").takeIf { json.has("overlayY") && !json.isNull("overlayY") }
+        // Прежние overlayX/overlayY (свободное место плавающей карточки) не переносим:
+        // панель у края стартует по центру правого края.
+        val overlayPlacement = OverlayPlacement(
+            edge = OverlayEdge.fromStorageKey(json.optString("overlayEdge", null)),
+            offsetY = json.optInt("overlayOffsetY", 0),
+            collapsed = json.optBoolean("overlayCollapsed", false),
+        )
         val themeMode = AppThemeMode.fromStorageKey(json.optString("themeMode", null))
         return SettingsSnapshot(
             usableCapacityKwh = capacity,
             reserveSocPercent = reserve,
             overlayEnabled = overlayEnabled,
-            overlayX = overlayX,
-            overlayY = overlayY,
+            overlayPlacement = overlayPlacement,
             themeMode = themeMode,
         )
     }
@@ -50,8 +56,9 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             .put("usableCapacityKwh", settings.usableCapacityKwh ?: JSONObject.NULL)
             .put("reserveSocPercent", settings.reserveSocPercent)
             .put("overlayEnabled", settings.overlayEnabled)
-            .put("overlayX", settings.overlayX ?: JSONObject.NULL)
-            .put("overlayY", settings.overlayY ?: JSONObject.NULL)
+            .put("overlayEdge", settings.overlayPlacement.edge.storageKey)
+            .put("overlayOffsetY", settings.overlayPlacement.offsetY)
+            .put("overlayCollapsed", settings.overlayPlacement.collapsed)
             .put("themeMode", settings.themeMode.storageKey)
         atomicWrite(settingsFile, json.toString())
     }
