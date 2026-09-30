@@ -141,7 +141,8 @@ private fun OverlaySettingRow(
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                "Остаток хода по окнам 5, 15 и 30 км",
+                "Панель у края экрана с остатком хода по окнам 5, 15 и 30 км. " +
+                    "Её можно перетащить вдоль края или к другому краю и спрятать стрелкой",
                 modifier = Modifier.padding(top = 4.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,

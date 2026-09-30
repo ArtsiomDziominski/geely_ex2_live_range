@@ -11,6 +11,7 @@ import com.geely.ex2.range.domain.engine.RangeEngine
 import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.EngineCheckpoint
+import com.geely.ex2.range.domain.model.OverlayPlacement
 import com.geely.ex2.range.domain.model.PeriodSnapshot
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RawTelemetry
@@ -47,12 +48,16 @@ class AppContainer(
     private val reader = VehicleTelemetryReader(appContext)
     private val overlay = RangeOverlayController(
         context = appContext,
-        onPositionChanged = { x, y -> setOverlayPosition(x, y) },
+        onPlacementChanged = { placement -> saveOverlayPlacement(placement) },
         onOpenApp = { openApp() },
     )
 
     private val _uiState = MutableStateFlow(RangeUiState(settings = stores.loadSettings()))
     val uiState: StateFlow<RangeUiState> = _uiState.asStateFlow()
+
+    /** Последнее место виджета от оверлея — см. [saveOverlayPlacement]. */
+    @Volatile
+    private var latestOverlayPlacement: OverlayPlacement = _uiState.value.settings.overlayPlacement
 
     private val mockActive = BuildConfig.UI_PREVIEW_MOCK && UiPreviewMock.ENABLED
     private var lastOverlaySnapshot: OverlaySnapshot? = null
@@ -101,8 +106,7 @@ class AppContainer(
 
     fun attachOverlay() {
         val settings = _uiState.value.settings
-        overlay.setThemeMode(settings.themeMode)
-        overlay.setSavedPosition(settings.overlayX, settings.overlayY)
+        overlay.setPlacement(settings.overlayPlacement)
         overlay.attach()
         if (settings.overlayEnabled && overlay.canDraw()) {
             overlay.setEnabled(true)
@@ -121,7 +125,6 @@ class AppContainer(
             val settings = _uiState.value.settings.copy(overlayEnabled = enabled)
             persistSettings(settings)
             _uiState.value = _uiState.value.copy(settings = settings)
-            overlay.setSavedPosition(settings.overlayX, settings.overlayY)
             overlay.setEnabled(enabled)
             if (enabled) {
                 syncOverlay(_uiState.value.engine, force = true)
@@ -134,7 +137,6 @@ class AppContainer(
             val settings = _uiState.value.settings.copy(themeMode = mode)
             persistSettings(settings)
             _uiState.value = _uiState.value.copy(settings = settings)
-            overlay.setThemeMode(mode)
         }
     }
 
@@ -147,11 +149,22 @@ class AppContainer(
         appContext.startActivity(intent)
     }
 
-    private fun setOverlayPosition(x: Int, y: Int) {
-        synchronized(lock) {
-            val settings = _uiState.value.settings.copy(overlayX = x, overlayY = y)
-            persistSettings(settings)
-            _uiState.value = _uiState.value.copy(settings = settings)
+    /**
+     * Виджет перетащили к краю, спрятали или вернули — запоминаем, чтобы пережить перезапуск.
+     * Вызов приходит с главного потока, а lock держит опрос VHAL (блокирующий Binder), поэтому
+     * пишем в фоне. Корутины могут выполниться не по порядку — каждая берёт последнее значение,
+     * а не своё, так что устаревшее место не перезапишет новое.
+     */
+    private fun saveOverlayPlacement(placement: OverlayPlacement) {
+        latestOverlayPlacement = placement
+        persistScope.launch {
+            synchronized(lock) {
+                val latest = latestOverlayPlacement
+                if (latest == _uiState.value.settings.overlayPlacement) return@launch
+                val settings = _uiState.value.settings.copy(overlayPlacement = latest)
+                persistSettings(settings)
+                _uiState.value = _uiState.value.copy(settings = settings)
+            }
         }
     }
 

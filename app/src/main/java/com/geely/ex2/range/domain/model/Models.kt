@@ -77,12 +77,34 @@ enum class AppThemeMode(val storageKey: String, val label: String) {
     }
 }
 
+/** Край экрана, к которому прижат виджет поверх окон. */
+enum class OverlayEdge(val storageKey: String) {
+    LEFT("left"),
+    RIGHT("right"),
+    ;
+
+    companion object {
+        fun fromStorageKey(key: String?): OverlayEdge {
+            return entries.find { it.storageKey == key } ?: RIGHT
+        }
+    }
+}
+
+/**
+ * Где стоит виджет поверх окон: прижат к [edge], по вертикали сдвинут на [offsetY] px от центра
+ * экрана (плюс — вниз), [collapsed] — спрятан в язычок у края.
+ */
+data class OverlayPlacement(
+    val edge: OverlayEdge = OverlayEdge.RIGHT,
+    val offsetY: Int = 0,
+    val collapsed: Boolean = false,
+)
+
 data class SettingsSnapshot(
     val usableCapacityKwh: Double? = RangeConstants.EX2_DEFAULT_USABLE_CAPACITY_KWH,
     val reserveSocPercent: Double = RangeConstants.RESERVE_SOC_PERCENT,
     val overlayEnabled: Boolean = false,
-    val overlayX: Int? = null,
-    val overlayY: Int? = null,
+    val overlayPlacement: OverlayPlacement = OverlayPlacement(),
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
 )
 
