@@ -9,11 +9,14 @@ import com.geely.ex2.range.ui.dashboard.windowFilledFraction
 
 /** Цвет кольца окна на панели виджета. */
 internal enum class GaugeTone {
-    /** Прогноз готов и расходится с оценкой ГУ не больше обычного. */
-    CLOSE,
+    /** Прогноз готов и не ниже оценки ГУ. */
+    ABOVE,
 
-    /** Прогноз готов, но заметно расходится с оценкой ГУ. */
-    FAR,
+    /** Прогноз готов и немного ниже оценки ГУ. */
+    BELOW,
+
+    /** Прогноз готов и заметно ниже оценки ГУ. */
+    FAR_BELOW,
 
     /** Прогноз готов, оценки ГУ нет — сравнивать не с чем. */
     READY,
@@ -49,10 +52,11 @@ internal fun gaugeState(
     return when (window.status) {
         WindowStatus.READY -> {
             val delta = DisplayFormat.rangeDeltaPercent(window.rangeTo0Km, vehicleRangeRemainingKm)
-            val tone = when {
-                delta == null -> GaugeTone.READY
-                vehicleDeltaTone(delta) == VehicleDeltaTone.CLOSE -> GaugeTone.CLOSE
-                else -> GaugeTone.FAR
+            val tone = when (delta?.let(::vehicleDeltaTone)) {
+                null -> GaugeTone.READY
+                VehicleDeltaTone.ABOVE -> GaugeTone.ABOVE
+                VehicleDeltaTone.BELOW -> GaugeTone.BELOW
+                VehicleDeltaTone.FAR_BELOW -> GaugeTone.FAR_BELOW
             }
             GaugeState(progress = 1f, tone = tone, value = DisplayFormat.kmNumber(window.rangeTo0Km))
         }

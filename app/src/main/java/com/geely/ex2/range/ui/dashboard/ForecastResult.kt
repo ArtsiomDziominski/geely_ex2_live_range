@@ -156,8 +156,11 @@ private fun VehicleComparison(
     val deltaPercent = DisplayFormat.rangeDeltaPercent(predictedKm, vehicleRangeRemainingKm)
     val deltaLabel = DisplayFormat.rangeDeltaLabel(deltaPercent)
     val tone = vehicleDeltaTone(deltaPercent)
-    val close = tone == VehicleDeltaTone.CLOSE
-    val toneColor = if (close) extra.success else extra.warning
+    val toneColor = when (tone) {
+        VehicleDeltaTone.ABOVE -> extra.success
+        VehicleDeltaTone.BELOW -> extra.warning
+        VehicleDeltaTone.FAR_BELOW -> extra.danger
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -172,7 +175,7 @@ private fun VehicleComparison(
         if (deltaLabel != null) {
             Spacer(Modifier.width(Spacing.xs))
             Icon(
-                if (close) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
+                if (tone == VehicleDeltaTone.ABOVE) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
                 contentDescription = null,
                 tint = toneColor,
                 modifier = Modifier.size(16.dp),
@@ -183,11 +186,12 @@ private fun VehicleComparison(
                 style = MaterialTheme.typography.labelLarge,
                 color = toneColor,
                 modifier = Modifier.clearAndSetSemantics {
-                    contentDescription = if (close) {
-                        "Расхождение с оценкой головного устройства " + deltaLabel + ", в пределах нормы"
-                    } else {
-                        "Расхождение с оценкой головного устройства " + deltaLabel + ", заметное"
-                    }
+                    contentDescription = "Расхождение с оценкой головного устройства " + deltaLabel +
+                        when (tone) {
+                            VehicleDeltaTone.ABOVE -> ", прогноз не ниже оценки"
+                            VehicleDeltaTone.BELOW -> ", прогноз ниже оценки"
+                            VehicleDeltaTone.FAR_BELOW -> ", прогноз заметно ниже оценки"
+                        }
                 },
             )
         }

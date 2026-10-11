@@ -638,8 +638,9 @@ private fun DetailsStatus(title: String, description: String) {
 private fun gaugeColor(tone: GaugeTone): Color {
     val extra = RangeThemeColors.extra
     return when (tone) {
-        GaugeTone.CLOSE -> extra.success
-        GaugeTone.FAR -> extra.warning
+        GaugeTone.ABOVE -> extra.success
+        GaugeTone.BELOW -> extra.warning
+        GaugeTone.FAR_BELOW -> extra.danger
         GaugeTone.READY, GaugeTone.FILLING -> MaterialTheme.colorScheme.primary
         GaugeTone.CHARGING -> extra.charging
         GaugeTone.NONE -> TrackColor
@@ -649,7 +650,8 @@ private fun gaugeColor(tone: GaugeTone): Color {
 private fun gaugeDescription(windowKm: Double, state: GaugeState): String {
     val window = "Окно " + DisplayFormat.windowKmLabel(windowKm)
     return when (state.tone) {
-        GaugeTone.CLOSE, GaugeTone.FAR, GaugeTone.READY -> "$window: прогноз ${state.value} км"
+        GaugeTone.ABOVE, GaugeTone.BELOW, GaugeTone.FAR_BELOW, GaugeTone.READY ->
+            "$window: прогноз ${state.value} км"
         GaugeTone.FILLING -> "$window: набирается"
         GaugeTone.CHARGING -> "$window: зарядка"
         GaugeTone.NONE -> "$window: прогноза нет"

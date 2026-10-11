@@ -20,8 +20,9 @@ class OverlayPresentationTest {
 
     @Test
     fun readyWindowToneFollowsVehicleEstimate() {
-        assertEquals(GaugeTone.CLOSE, gaugeState(ready, charging = false, 220f).tone)
-        assertEquals(GaugeTone.FAR, gaugeState(ready, charging = false, 300f).tone)
+        assertEquals(GaugeTone.ABOVE, gaugeState(ready, charging = false, 200f).tone)
+        assertEquals(GaugeTone.BELOW, gaugeState(ready, charging = false, 220f).tone)
+        assertEquals(GaugeTone.FAR_BELOW, gaugeState(ready, charging = false, 300f).tone)
     }
 
     @Test

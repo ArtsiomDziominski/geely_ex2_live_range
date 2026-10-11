@@ -5,7 +5,6 @@ import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RangeWindow
-import kotlin.math.abs
 
 /**
  * Презентационные правила главного экрана.
@@ -92,15 +91,28 @@ fun tripHint(engine: EngineView?): String {
     }
 }
 
-/** Насколько прогноз близок к оценке головного устройства. */
-enum class VehicleDeltaTone { CLOSE, FAR }
+/** Где прогноз относительно оценки головного устройства. */
+enum class VehicleDeltaTone {
+    /** Прогноз не ниже оценки ГУ — зелёный. */
+    ABOVE,
 
-/** До 10 % расхождения считаем нормальным разбросом методик. */
-private const val VEHICLE_DELTA_CLOSE_PERCENT = 10.0
+    /** Прогноз ниже оценки ГУ не больше чем на [VEHICLE_DELTA_FAR_BELOW_PERCENT] % — оранжевый. */
+    BELOW,
+
+    /** Прогноз ниже оценки ГУ сильнее — красный. */
+    FAR_BELOW,
+}
+
+/** Насколько прогноз может быть ниже оценки ГУ, пока расхождение ещё не красное. */
+private const val VEHICLE_DELTA_FAR_BELOW_PERCENT = 25.0
 
 fun vehicleDeltaTone(percent: Double?): VehicleDeltaTone {
-    if (percent == null || !percent.isFinite()) return VehicleDeltaTone.CLOSE
-    return if (abs(percent) <= VEHICLE_DELTA_CLOSE_PERCENT) VehicleDeltaTone.CLOSE else VehicleDeltaTone.FAR
+    if (percent == null || !percent.isFinite()) return VehicleDeltaTone.ABOVE
+    return when {
+        percent >= 0.0 -> VehicleDeltaTone.ABOVE
+        percent >= -VEHICLE_DELTA_FAR_BELOW_PERCENT -> VehicleDeltaTone.BELOW
+        else -> VehicleDeltaTone.FAR_BELOW
+    }
 }
 
 /** Доля набранного окна для индикатора прогресса. */
