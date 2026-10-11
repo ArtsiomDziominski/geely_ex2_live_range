@@ -24,6 +24,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.geely.ex2.range.domain.model.OverlayEdge
 import com.geely.ex2.range.domain.model.OverlayPlacement
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RangeWindow
 import com.geely.ex2.range.ui.theme.RangeTheme
 import kotlin.math.roundToInt
@@ -50,6 +51,7 @@ class RangeOverlayController(
     private var dragStart = DockPosition(OverlayEdge.RIGHT, 0f, 0f)
     private var dragScreen = Size(0, 0)
 
+    private var windowsKm by mutableStateOf(RangeConstants.RANGE_WINDOWS_KM.toList())
     private var windows by mutableStateOf<List<RangeWindow>>(emptyList())
     private var charging by mutableStateOf(false)
     private var vehicleRangeRemainingKm by mutableStateOf<Float?>(null)
@@ -102,6 +104,7 @@ class RangeOverlayController(
                 // Панель всегда тёмная, как у края экрана, — от темы приложения не зависит.
                 RangeTheme(darkTheme = true) {
                     RangeOverlayContent(
+                        windowsKm = windowsKm,
                         windows = windows,
                         charging = charging,
                         vehicleRangeRemainingKm = vehicleRangeRemainingKm,
@@ -143,7 +146,14 @@ class RangeOverlayController(
         }
     }
 
-    fun update(windows: List<RangeWindow>, charging: Boolean, vehicleRangeRemainingKm: Float?) {
+    /** [windowsKm] — окна, кольца которых стоят на панели (выбираются в настройках), по порядку. */
+    fun update(
+        windowsKm: List<Double>,
+        windows: List<RangeWindow>,
+        charging: Boolean,
+        vehicleRangeRemainingKm: Float?,
+    ) {
+        this.windowsKm = windowsKm
         this.windows = windows
         this.charging = charging
         this.vehicleRangeRemainingKm = vehicleRangeRemainingKm

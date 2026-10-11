@@ -122,6 +122,8 @@ data class SettingsSnapshot(
     val reserveSocPercent: Double = RangeConstants.RESERVE_SOC_PERCENT,
     val overlayEnabled: Boolean = false,
     val overlayPlacement: OverlayPlacement = OverlayPlacement(),
+    /** Окна, кольца которых показаны на виджете поверх окон; хотя бы одно всегда остаётся. */
+    val overlayWindowsKm: Set<Double> = RangeConstants.RANGE_WINDOWS_KM.toSet(),
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
 )
 

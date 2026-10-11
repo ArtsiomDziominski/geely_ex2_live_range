@@ -135,6 +135,19 @@ class AppContainer(
         }
     }
 
+    /** Показывать ли кольцо окна [windowKm] на виджете. Последнее оставшееся окно не убирается. */
+    fun setOverlayWindowShown(windowKm: Double, shown: Boolean) {
+        synchronized(lock) {
+            val current = _uiState.value.settings
+            val windowsKm = if (shown) current.overlayWindowsKm + windowKm else current.overlayWindowsKm - windowKm
+            if (windowsKm.isEmpty() || windowsKm == current.overlayWindowsKm) return
+            val settings = current.copy(overlayWindowsKm = windowsKm)
+            persistSettings(settings)
+            _uiState.value = _uiState.value.copy(settings = settings)
+            syncOverlay(_uiState.value.engine)
+        }
+    }
+
     fun setThemeMode(mode: AppThemeMode) {
         synchronized(lock) {
             val settings = _uiState.value.settings.copy(themeMode = mode)
@@ -206,12 +219,17 @@ class AppContainer(
     }
 
     private fun syncOverlay(view: EngineView?, force: Boolean = false) {
-        if (!_uiState.value.settings.overlayEnabled) return
+        val settings = _uiState.value.settings
+        if (!settings.overlayEnabled) return
         val charging = view?.charging == true
+        val windowsKm = RangeConstants.RANGE_WINDOWS_KM.filter { it in settings.overlayWindowsKm }
+        // Убранные с виджета окна в снимок не идут — их пересчёт панель не перерисовывает.
+        val windows = view?.windows.orEmpty().filter { it.windowKm in settings.overlayWindowsKm }
         val snapshot = OverlaySnapshot(
             charging = charging,
             vehicleRangeRemainingKm = view?.vehicleRangeRemainingKm,
-            windows = view?.windows.orEmpty().map { window ->
+            windowsKm = windowsKm,
+            windows = windows.map { window ->
                 OverlayWindowSnapshot(
                     windowKm = window.windowKm,
                     status = window.status,
@@ -225,7 +243,8 @@ class AppContainer(
         if (!force && snapshot == lastOverlaySnapshot) return
         lastOverlaySnapshot = snapshot
         overlay.update(
-            windows = view?.windows.orEmpty(),
+            windowsKm = windowsKm,
+            windows = windows,
             charging = charging,
             vehicleRangeRemainingKm = view?.vehicleRangeRemainingKm,
         )
@@ -390,5 +409,6 @@ private data class OverlayWindowSnapshot(
 private data class OverlaySnapshot(
     val charging: Boolean,
     val vehicleRangeRemainingKm: Float?,
+    val windowsKm: List<Double>,
     val windows: List<OverlayWindowSnapshot>,
 )

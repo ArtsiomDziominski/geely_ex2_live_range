@@ -343,6 +343,7 @@ private fun RangeNavHost(
             SettingsScreen(
                 settings = settings,
                 onOverlayEnabledChange = onOverlayEnabledChange,
+                onOverlayWindowShownChange = viewModel::setOverlayWindowShown,
                 onThemeModeChange = viewModel::setThemeMode,
             )
         }

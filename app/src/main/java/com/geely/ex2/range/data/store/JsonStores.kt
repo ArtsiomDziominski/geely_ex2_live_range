@@ -41,12 +41,18 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             offsetY = json.optInt("overlayOffsetY", 0),
             collapsed = json.optBoolean("overlayCollapsed", false),
         )
+        // Ключа нет в настройках прежних версий — тогда на виджете все окна.
+        val overlayWindowsKm = json.optJSONArray("overlayWindowsKm")?.let { array ->
+            val stored = List(array.length()) { index -> array.optDouble(index) }
+            RangeConstants.RANGE_WINDOWS_KM.filter { it in stored }.toSet()
+        }?.takeIf { it.isNotEmpty() } ?: RangeConstants.RANGE_WINDOWS_KM.toSet()
         val themeMode = AppThemeMode.fromStorageKey(json.optString("themeMode", null))
         return SettingsSnapshot(
             usableCapacityKwh = capacity,
             reserveSocPercent = reserve,
             overlayEnabled = overlayEnabled,
             overlayPlacement = overlayPlacement,
+            overlayWindowsKm = overlayWindowsKm,
             themeMode = themeMode,
         )
     }
@@ -59,6 +65,7 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             .put("overlayEdge", settings.overlayPlacement.edge.storageKey)
             .put("overlayOffsetY", settings.overlayPlacement.offsetY)
             .put("overlayCollapsed", settings.overlayPlacement.collapsed)
+            .put("overlayWindowsKm", JSONArray(settings.overlayWindowsKm))
             .put("themeMode", settings.themeMode.storageKey)
         atomicWrite(settingsFile, json.toString())
     }

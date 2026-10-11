@@ -21,7 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.BuildConfig
+import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.AppThemeMode
+import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.ui.layout.LocalRangeLayout
 import com.geely.ex2.range.ui.theme.Spacing
@@ -30,6 +32,7 @@ import com.geely.ex2.range.ui.theme.Spacing
 fun SettingsScreen(
     settings: SettingsSnapshot,
     onOverlayEnabledChange: (Boolean) -> Unit,
+    onOverlayWindowShownChange: (windowKm: Double, shown: Boolean) -> Unit,
     onThemeModeChange: (AppThemeMode) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -58,6 +61,11 @@ fun SettingsScreen(
         OverlaySettingRow(
             enabled = settings.overlayEnabled,
             onEnabledChange = onOverlayEnabledChange,
+        )
+        OverlayWindowsSetting(
+            shownKm = settings.overlayWindowsKm,
+            onShownChange = onOverlayWindowShownChange,
+            modifier = Modifier.padding(top = 20.dp),
         )
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 20.dp),
@@ -152,5 +160,47 @@ private fun OverlaySettingRow(
             checked = enabled,
             onCheckedChange = onEnabledChange,
         )
+    }
+}
+
+/** Какие окна стоят кольцами на виджете. Последнее включённое не выключается — пустой панели не бывает. */
+@Composable
+private fun OverlayWindowsSetting(
+    shownKm: Set<Double>,
+    onShownChange: (windowKm: Double, shown: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            "Окна на виджете",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            "Какие окна прогноза показывать на панели. Хотя бы одно остаётся включённым",
+            modifier = Modifier.padding(top = 4.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        RangeConstants.RANGE_WINDOWS_KM.forEach { windowKm ->
+            val shown = windowKm in shownKm
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    DisplayFormat.windowKmLabel(windowKm),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Switch(
+                    checked = shown,
+                    onCheckedChange = { onShownChange(windowKm, it) },
+                    enabled = !shown || shownKm.size > 1,
+                )
+            }
+        }
     }
 }

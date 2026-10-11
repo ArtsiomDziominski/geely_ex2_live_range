@@ -103,6 +103,12 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setOverlayWindowShown(windowKm: Double, shown: Boolean) {
+        viewModelScope.launch(Dispatchers.Default) {
+            container.setOverlayWindowShown(windowKm, shown)
+        }
+    }
+
     /** Контейнер берёт тот же lock, что и опрос VHAL (блокирующий Binder), — не ждём его на главном потоке. */
     fun setThemeMode(mode: AppThemeMode) {
         viewModelScope.launch(Dispatchers.Default) {

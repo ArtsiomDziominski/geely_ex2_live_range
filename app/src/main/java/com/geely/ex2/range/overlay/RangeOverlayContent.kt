@@ -98,13 +98,14 @@ private val DetailsGap = 6.dp
 private const val DETAILS_AUTO_HIDE_MS = 8_000L
 
 /**
- * Виджет поверх окон: чёрная панель, прижатая к краю экрана, — по кольцу на окно 5 / 15 / 30 км
- * и прогноз под ним. Нажатие на кольцо открывает рядом карточку подробностей, стрелка внизу
+ * Виджет поверх окон: чёрная панель, прижатая к краю экрана, — по кольцу на каждое окно из
+ * [windowsKm] (5 / 15 / 30 км, выбираются в настройках) и прогноз под ним. Нажатие на кольцо открывает рядом карточку подробностей, стрелка внизу
  * прячет панель в язычок у края, нажатие на язычок возвращает её. Перетаскивание — в
  * [OverlayRootLayout], сюда доходят только нажатия.
  */
 @Composable
 fun RangeOverlayContent(
+    windowsKm: List<Double>,
     windows: List<RangeWindow>,
     charging: Boolean,
     vehicleRangeRemainingKm: Float?,
@@ -120,6 +121,7 @@ fun RangeOverlayContent(
         OverlayHandle(edge = edge, onClick = { onCollapsedChange(false) })
     } else {
         ExpandedOverlay(
+            windowsKm = windowsKm,
             windows = windows,
             charging = charging,
             vehicleRangeRemainingKm = vehicleRangeRemainingKm,
@@ -136,6 +138,7 @@ fun RangeOverlayContent(
 /** Панель у края и, если открыта, карточка подробностей со стороны экрана. */
 @Composable
 private fun ExpandedOverlay(
+    windowsKm: List<Double>,
     windows: List<RangeWindow>,
     charging: Boolean,
     vehicleRangeRemainingKm: Float?,
@@ -156,6 +159,7 @@ private fun ExpandedOverlay(
         },
         content = {
             SidePanel(
+                windowsKm = windowsKm,
                 windows = windows,
                 charging = charging,
                 vehicleRangeRemainingKm = vehicleRangeRemainingKm,
@@ -205,8 +209,10 @@ private fun ExpandedOverlay(
     }
 
     if (detailsWindowKm != null) {
-        LaunchedEffect(detailsWindowKm) {
-            delay(DETAILS_AUTO_HIDE_MS)
+        // Окно убрали с виджета в настройках — его подробности закрываем сразу.
+        val onPanel = detailsWindowKm in windowsKm
+        LaunchedEffect(detailsWindowKm, onPanel) {
+            if (onPanel) delay(DETAILS_AUTO_HIDE_MS)
             onDismissDetails()
         }
     }
@@ -214,6 +220,7 @@ private fun ExpandedOverlay(
 
 @Composable
 private fun SidePanel(
+    windowsKm: List<Double>,
     windows: List<RangeWindow>,
     charging: Boolean,
     vehicleRangeRemainingKm: Float?,
@@ -233,7 +240,7 @@ private fun SidePanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        RangeConstants.RANGE_WINDOWS_KM.forEach { windowKm ->
+        windowsKm.forEach { windowKm ->
             WindowGauge(
                 windowKm = windowKm,
                 state = gaugeState(windows.findWindow(windowKm), charging, vehicleRangeRemainingKm),
