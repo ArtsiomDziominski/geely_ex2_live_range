@@ -37,10 +37,13 @@ android {
         create("user") {
             dimension = "install"
             isDefault = true
+            // Подписана debug-ключом сборочной машины — релизный APK поверх неё не встанет.
+            buildConfigField("boolean", "SELF_UPDATE", "false")
         }
         create("system") {
             dimension = "install"
             versionNameSuffix = "-system"
+            buildConfigField("boolean", "SELF_UPDATE", "true")
         }
     }
 

@@ -145,6 +145,8 @@ data class SettingsSnapshot(
     val overlayWindowsKm: Set<Double> = RangeConstants.RANGE_WINDOWS_KM.toSet(),
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val style: AppStyle = AppStyle.CLASSIC,
+    /** Раз в сутки проверять, не вышла ли новая версия. Ставит её всё равно пользователь. */
+    val autoUpdateCheck: Boolean = true,
 )
 
 data class EngineCheckpoint(

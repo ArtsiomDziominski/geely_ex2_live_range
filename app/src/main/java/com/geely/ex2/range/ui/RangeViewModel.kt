@@ -13,6 +13,7 @@ import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.RawTelemetry
 import com.geely.ex2.range.domain.model.SettingsSnapshot
 import com.geely.ex2.range.domain.model.TripRecord
+import com.geely.ex2.range.domain.model.UpdateState
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,6 +47,8 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     val uiState = container.uiState
 
     val settings: StateFlow<SettingsSnapshot> = uiState.screenState { it.settings }
+    val update: StateFlow<UpdateState> = container.updates.state
+    val selfUpdateSupported: Boolean = container.updates.selfUpdateSupported
     val dashboard: StateFlow<DashboardUiState> = uiState.screenState(::dashboardState)
     val trips: StateFlow<TripsUiState> = uiState.screenState(::tripsState)
     val help: StateFlow<HelpUiState> = uiState.screenState(::helpState)
@@ -114,6 +117,20 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(mode: AppThemeMode) {
         viewModelScope.launch(Dispatchers.Default) {
             container.setThemeMode(mode)
+        }
+    }
+
+    fun checkForUpdates() {
+        container.updates.check()
+    }
+
+    fun installUpdate() {
+        container.updates.downloadAndInstall()
+    }
+
+    fun setAutoUpdateCheck(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.Default) {
+            container.setAutoUpdateCheck(enabled)
         }
     }
 

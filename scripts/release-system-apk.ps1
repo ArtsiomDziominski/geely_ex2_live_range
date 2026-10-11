@@ -4,14 +4,18 @@
 #   .\scripts\release-system-apk.ps1           # VERSION_CODE += 1, then build
 #   .\scripts\release-system-apk.ps1 -NoBump  # build current version without bump
 #   .\scripts\release-system-apk.ps1 -VersionName 0.1.1
+#   .\scripts\release-system-apk.ps1 -Notes "What changed"   # text shown in the in-app update prompt
 #
 # Version lives in app\version.properties (VERSION_NAME + VERSION_CODE).
 # Output: install\out\geely-ex2-range-v{VERSION_NAME}({VERSION_CODE}).apk
 # Also copies to install\out\geely-ex2-range-system-platform-signed.apk
+# and writes install\out\update.json - the manifest the app reads to update itself over the
+# network. Publish both files as assets of a GitHub release (see docs\system-install.md).
 
 param(
     [switch]$NoBump,
-    [string]$VersionName = ""
+    [string]$VersionName = "",
+    [string]$Notes = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -140,6 +144,24 @@ if ($LASTEXITCODE -ne 0) { throw "apksigner sign failed" }
 Copy-Item $signedNamed $signedStable -Force
 Remove-Item $aligned, $tmpUnsigned -Force -ErrorAction SilentlyContinue
 
+# Manifest for the in-app updater. "apk" is the stable file name: the app downloads it from the
+# same release and checks size and SHA-256 against this file.
+$manifestPath = Join-Path $outDir "update.json"
+$manifest = [ordered]@{
+    versionCode = $code
+    versionName = $name
+    apk         = (Split-Path $signedStable -Leaf)
+    sha256      = (Get-FileHash -Algorithm SHA256 $signedStable).Hash.ToLower()
+    sizeBytes   = (Get-Item $signedStable).Length
+    notes       = $Notes
+}
+# No BOM: the app parses the file as plain UTF-8 JSON.
+[System.IO.File]::WriteAllText(
+    $manifestPath,
+    ($manifest | ConvertTo-Json),
+    (New-Object System.Text.UTF8Encoding($false))
+)
+
 $ErrorActionPreference = "Continue"
 cmd /c "`"$apksigner`" verify --print-certs `"$signedNamed`"" | Select-String "Signer #1 certificate"
 $ErrorActionPreference = "Stop"
@@ -158,3 +180,9 @@ Write-Host "Then precompile (AOT) - without it Compose runs interpreted/JIT and 
 Write-Host "  adb shell cmd package compile -m speed -f com.geely.ex2.range"
 Write-Host "  adb shell am force-stop com.geely.ex2.range"
 Write-Host "  adb shell am start -n com.geely.ex2.range/.ui.MainActivity"
+Write-Host ""
+Write-Host "Over-the-air update: publish a GitHub release with exactly these two assets"
+Write-Host "  $signedStable"
+Write-Host "  $manifestPath"
+Write-Host "e.g.  gh release create v$name-$code `"$signedStable`" `"$manifestPath`" --title `"$name ($code)`" --notes `"...`""
+Write-Host "Head units already running the app pick it up from Settings > Update."

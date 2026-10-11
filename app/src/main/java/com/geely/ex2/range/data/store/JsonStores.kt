@@ -56,6 +56,7 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             overlayWindowsKm = overlayWindowsKm,
             themeMode = themeMode,
             style = AppStyle.fromStorageKey(json.optString("style", null)),
+            autoUpdateCheck = json.optBoolean("autoUpdateCheck", true),
         )
     }
 
@@ -70,6 +71,7 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             .put("overlayWindowsKm", JSONArray(settings.overlayWindowsKm))
             .put("themeMode", settings.themeMode.storageKey)
             .put("style", settings.style.storageKey)
+            .put("autoUpdateCheck", settings.autoUpdateCheck)
         atomicWrite(settingsFile, json.toString())
     }
 

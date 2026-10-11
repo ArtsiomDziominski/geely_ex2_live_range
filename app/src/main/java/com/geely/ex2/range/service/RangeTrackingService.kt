@@ -32,9 +32,11 @@ class RangeTrackingService : LifecycleService() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
-        val container = (application as RangeApplication).container
+        val app = application as RangeApplication
+        val container = app.container
         container.attachOverlay()
         container.startReader()
+        container.onServiceStarted(isUiVisible = { app.isUiVisible })
         lifecycleScope.launch(Dispatchers.Default) {
             while (isActive) {
                 container.poll()

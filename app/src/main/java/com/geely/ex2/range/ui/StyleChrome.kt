@@ -60,6 +60,8 @@ internal fun StyledAppFrame(
     onNavigate: (String) -> Unit,
     onAppInfo: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Отметка на «Настройках»: найдено обновление. */
+    settingsBadge: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalStyleColors.current
@@ -69,7 +71,7 @@ internal fun StyledAppFrame(
     }
     when (style) {
         AppStyle.COCKPIT -> Row(modifier) {
-            CockpitRail(navController, colors, onNavigate, onAppInfo)
+            CockpitRail(navController, colors, settingsBadge, onNavigate, onAppInfo)
             Box(
                 Modifier
                     .weight(1f)
@@ -77,7 +79,7 @@ internal fun StyledAppFrame(
             ) { content() }
         }
         AppStyle.NORDIC -> Column(modifier) {
-            NordicTabs(navController, colors, onNavigate, onAppInfo)
+            NordicTabs(navController, colors, settingsBadge, onNavigate, onAppInfo)
             Box(
                 Modifier
                     .weight(1f)
@@ -90,10 +92,10 @@ internal fun StyledAppFrame(
                     .weight(1f)
                     .fillMaxWidth(),
             ) { content() }
-            BentoDock(navController, colors, onNavigate, onAppInfo)
+            BentoDock(navController, colors, settingsBadge, onNavigate, onAppInfo)
         }
         AppStyle.NATIVE -> Row(modifier) {
-            NativeMenu(navController, colors, onNavigate, onAppInfo)
+            NativeMenu(navController, colors, settingsBadge, onNavigate, onAppInfo)
             Box(
                 Modifier
                     .weight(1f)
@@ -115,6 +117,7 @@ private fun currentRoute(navController: NavHostController): String? {
 private fun CockpitRail(
     navController: NavHostController,
     colors: StyleColors,
+    settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
     onAppInfo: () -> Unit,
 ) {
@@ -144,11 +147,12 @@ private fun CockpitRail(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
                 ) {
-                    Icon(
-                        if (selected) destination.selectedIcon else destination.icon,
-                        contentDescription = null,
+                    NavIcon(
+                        icon = if (selected) destination.selectedIcon else destination.icon,
                         tint = tint,
-                        modifier = Modifier.size(26.dp),
+                        size = 26,
+                        badge = settingsBadge && destination.route == ROUTE_SETTINGS,
+                        colors = colors,
                     )
                     Text(
                         destination.label,
@@ -176,6 +180,7 @@ private fun CockpitRail(
 private fun NordicTabs(
     navController: NavHostController,
     colors: StyleColors,
+    settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
     onAppInfo: () -> Unit,
 ) {
@@ -224,12 +229,20 @@ private fun NordicTabs(
                             .padding(horizontal = 26.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            destination.label,
-                            fontSize = 20.sp,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (selected) colors.text else colors.muted,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                destination.label,
+                                fontSize = 20.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selected) colors.text else colors.muted,
+                            )
+                            if (settingsBadge && destination.route == ROUTE_SETTINGS) {
+                                BadgeDot(colors)
+                            }
+                        }
                     }
                 }
             }
@@ -257,6 +270,7 @@ private fun NordicTabs(
 private fun BentoDock(
     navController: NavHostController,
     colors: StyleColors,
+    settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
     onAppInfo: () -> Unit,
 ) {
@@ -299,11 +313,12 @@ private fun BentoDock(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Icon(
-                            if (selected) destination.selectedIcon else destination.icon,
-                            contentDescription = null,
+                        NavIcon(
+                            icon = if (selected) destination.selectedIcon else destination.icon,
                             tint = tint,
-                            modifier = Modifier.size(24.dp),
+                            size = 24,
+                            badge = settingsBadge && destination.route == ROUTE_SETTINGS,
+                            colors = colors,
                         )
                         Text(
                             destination.label,
@@ -332,6 +347,7 @@ private fun BentoDock(
 private fun NativeMenu(
     navController: NavHostController,
     colors: StyleColors,
+    settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
     onAppInfo: () -> Unit,
 ) {
@@ -361,6 +377,7 @@ private fun NativeMenu(
                 label = destination.label,
                 selected = selected,
                 colors = colors,
+                badge = settingsBadge && destination.route == ROUTE_SETTINGS,
                 modifier = Modifier.selectable(
                     selected = selected,
                     role = Role.Tab,
@@ -386,6 +403,7 @@ private fun NativeMenuItem(
     selected: Boolean,
     colors: StyleColors,
     modifier: Modifier = Modifier,
+    badge: Boolean = false,
 ) {
     val tint = if (selected) colors.accentText else colors.text
     val highlight = if (selected) colors.accent.copy(alpha = 0.16f) else Color.Transparent
@@ -404,10 +422,30 @@ private fun NativeMenuItem(
                 .background(if (selected) colors.accent else Color.Transparent),
         )
         Spacer(Modifier.width(42.dp))
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(27.dp))
+        NavIcon(icon = icon, tint = tint, size = 27, badge = badge, colors = colors)
         Spacer(Modifier.width(18.dp))
         Text(label, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 1)
     }
+}
+
+/** Иконка раздела; с [badge] — точка в углу: в разделе есть на что посмотреть. */
+@Composable
+private fun NavIcon(icon: ImageVector, tint: Color, size: Int, badge: Boolean, colors: StyleColors) {
+    Box {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size.dp))
+        if (badge) {
+            BadgeDot(colors, Modifier.align(Alignment.TopEnd))
+        }
+    }
+}
+
+@Composable
+private fun BadgeDot(colors: StyleColors, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(9.dp)
+            .background(colors.reserve, CircleShape),
+    )
 }
 
 @Composable

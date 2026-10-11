@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.geely.ex2.range.data.store.JsonStores
 import com.geely.ex2.range.data.store.SharedJsonStore
+import com.geely.ex2.range.data.update.UpdateManager
 import com.geely.ex2.range.data.vhal.VehicleTelemetryReader
 import com.geely.ex2.range.debug.UiPreviewMock
 import com.geely.ex2.range.domain.engine.DisplaySmoother
@@ -48,6 +49,9 @@ class AppContainer(
     private val engine = RangeEngine()
     private val driveStats = DriveStatsTracker()
     private val smoother = DisplaySmoother()
+
+    /** Обновление приложения по сети; экран настроек читает его состояние напрямую. */
+    val updates = UpdateManager(appContext, persistScope)
     private val time = AndroidTimeSource()
     private val reader = VehicleTelemetryReader(appContext)
     private val overlay = RangeOverlayController(
@@ -154,6 +158,29 @@ class AppContainer(
             val settings = _uiState.value.settings.copy(themeMode = mode)
             persistSettings(settings)
             _uiState.value = _uiState.value.copy(settings = settings)
+        }
+    }
+
+    fun setAutoUpdateCheck(enabled: Boolean) {
+        synchronized(lock) {
+            val settings = _uiState.value.settings.copy(autoUpdateCheck = enabled)
+            persistSettings(settings)
+            _uiState.value = _uiState.value.copy(settings = settings)
+        }
+    }
+
+    /**
+     * При старте сервиса: довести до конца обновление, поставленное по сети, и, если включено,
+     * раз в сутки проверить новую версию. Только в сборке, которая умеет обновляться сама.
+     */
+    fun onServiceStarted(isUiVisible: () -> Boolean) {
+        if (!updates.selfUpdateSupported) return
+        updates.finishUpdateIfNeeded(
+            isUiVisible = isUiVisible,
+            isParked = { _uiState.value.engine?.parked == true },
+        )
+        if (_uiState.value.settings.autoUpdateCheck) {
+            updates.checkIfDue(time.wallClockMs())
         }
     }
 

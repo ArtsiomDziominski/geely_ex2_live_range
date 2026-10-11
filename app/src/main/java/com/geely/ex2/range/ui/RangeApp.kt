@@ -32,6 +32,8 @@ import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,6 +73,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.geely.ex2.range.R
+import com.geely.ex2.range.domain.model.UpdateState
 import com.geely.ex2.range.ui.dashboard.DashboardScreen
 import com.geely.ex2.range.ui.help.HelpScreen
 import com.geely.ex2.range.ui.layout.LocalRangeLayout
@@ -85,7 +88,7 @@ import com.geely.ex2.range.ui.trips.TripsScreen
 private const val ROUTE_DASHBOARD = "dashboard"
 private const val ROUTE_TRIPS = "trips"
 private const val ROUTE_HELP = "help"
-private const val ROUTE_SETTINGS = "settings"
+internal const val ROUTE_SETTINGS = "settings"
 
 @Immutable
 internal data class Destination(
@@ -106,6 +109,9 @@ internal val Destinations = listOf(
 @Composable
 fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 0) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
+    // Найдено обновление — отметка на «Настройках», где его можно поставить.
+    val updateAvailable = update is UpdateState.Available
     val navController = rememberNavController()
     val context = LocalContext.current
     val view = LocalView.current
@@ -202,6 +208,7 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                             navController = navController,
                             onNavigate = { destination -> navigateTab(destination) },
                             onAppInfo = { showAppInfo = true },
+                            settingsBadge = updateAvailable,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .windowInsetsPadding(screenInsets)
@@ -252,6 +259,7 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                     if (!layout.useNavigationRail) {
                         RangeNavigationBar(
                             navController = navController,
+                            settingsBadge = updateAvailable,
                             onNavigate = { destination -> navigateTab(destination) },
                         )
                     }
@@ -270,6 +278,7 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                     if (layout.useNavigationRail) {
                         RangeNavigationRail(
                             navController = navController,
+                            settingsBadge = updateAvailable,
                             onNavigate = { destination -> navigateTab(destination) },
                         )
                     }
@@ -293,6 +302,7 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
 @Composable
 private fun RangeNavigationBar(
     navController: NavHostController,
+    settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
 ) {
     val route = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -302,7 +312,9 @@ private fun RangeNavigationBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = { onNavigate(destination.route) },
-                icon = { DestinationIcon(destination, selected) },
+                icon = {
+                    DestinationIcon(destination, selected, settingsBadge && destination.route == ROUTE_SETTINGS)
+                },
             )
         }
     }
@@ -312,6 +324,7 @@ private fun RangeNavigationBar(
 @Composable
 private fun RangeNavigationRail(
     navController: NavHostController,
+    settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
 ) {
     val route = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -321,18 +334,22 @@ private fun RangeNavigationRail(
             NavigationRailItem(
                 selected = selected,
                 onClick = { onNavigate(destination.route) },
-                icon = { DestinationIcon(destination, selected) },
+                icon = {
+                    DestinationIcon(destination, selected, settingsBadge && destination.route == ROUTE_SETTINGS)
+                },
             )
         }
     }
 }
 
 @Composable
-private fun DestinationIcon(destination: Destination, selected: Boolean) {
-    Icon(
-        if (selected) destination.selectedIcon else destination.icon,
-        contentDescription = destination.label,
-    )
+private fun DestinationIcon(destination: Destination, selected: Boolean, badge: Boolean) {
+    BadgedBox(badge = { if (badge) Badge() }) {
+        Icon(
+            if (selected) destination.selectedIcon else destination.icon,
+            contentDescription = destination.label,
+        )
+    }
 }
 
 @Composable
@@ -343,6 +360,7 @@ private fun RangeNavHost(
     modifier: Modifier = Modifier,
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
     NavHost(
         navController = navController,
         startDestination = ROUTE_DASHBOARD,
@@ -387,6 +405,11 @@ private fun RangeNavHost(
                 onOverlayWindowShownChange = viewModel::setOverlayWindowShown,
                 onThemeModeChange = viewModel::setThemeMode,
                 onStyleChange = viewModel::setStyle,
+                update = update,
+                selfUpdateSupported = viewModel.selfUpdateSupported,
+                onCheckUpdates = viewModel::checkForUpdates,
+                onInstallUpdate = viewModel::installUpdate,
+                onAutoUpdateCheckChange = viewModel::setAutoUpdateCheck,
             )
         }
     }

@@ -11,6 +11,8 @@
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT" />
     <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION" />
+    <!-- Проверка и загрузка обновлений из релизов на GitHub. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -55,6 +57,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Vehicle telemetry buffer for remaining-range windows" />
         </service>
+
+        <receiver
+            android:name=".data.update.UpdateInstallReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".service.BootReceiver"
