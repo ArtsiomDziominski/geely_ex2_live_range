@@ -90,7 +90,7 @@ object DisplayFormat {
         return String.format(Locale.US, "%.1f", value)
     }
 
-fun energyKwh(value: Double?): String {
+    fun energyKwh(value: Double?): String {
         if (value == null || !value.isFinite()) return "—"
         return String.format(Locale.US, "%.1f кВт·ч", value)
     }
@@ -110,6 +110,11 @@ fun energyKwh(value: Double?): String {
         } else {
             String.format(Locale.US, "%d мин", minutes)
         }
+    }
+
+    fun powerKw(value: Float?): String? {
+        if (value == null || !value.isFinite()) return null
+        return String.format(Locale.US, "%.1f кВт", value)
     }
 
     fun windowKmLabel(windowKm: Double): String {

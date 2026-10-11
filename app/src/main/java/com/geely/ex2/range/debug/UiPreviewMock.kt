@@ -3,6 +3,7 @@ package com.geely.ex2.range.debug
 import android.os.SystemClock
 import com.geely.ex2.range.data.vhal.TelemetryRead
 import com.geely.ex2.range.domain.model.BufferPoint
+import com.geely.ex2.range.domain.model.ChargeState
 import com.geely.ex2.range.domain.model.DriveStatsSnapshot
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.Gear
@@ -244,6 +245,11 @@ object UiPreviewMock {
             nominalCapacityWh = (CAPACITY_KWH * 1000).toFloat(),
             chargingLikelyHint = scenario == Scenario.CHARGING,
             vehicleRangeRemainingKm = (soc * 3.5).toFloat(),
+            charge = if (scenario == Scenario.CHARGING) {
+                ChargeState(plugged = true, powerKw = 6.2f, minutesLeft = ((98f - soc) * 4f).toInt().coerceAtLeast(1))
+            } else {
+                ChargeState(plugged = false, powerKw = 0f)
+            },
         )
         return TelemetryRead(tick = tick, raw = rawTelemetry(soc, speed, gear, temp))
     }

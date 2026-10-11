@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.Power
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Straighten
 import androidx.compose.material.icons.outlined.Thermostat
@@ -138,12 +139,20 @@ private fun SocAndRange(
         }
         KmUntilLowSocLine(hero, soc)
         AnimatedVisibility(visible = charging, enter = fadeIn(), exit = fadeOut()) {
-            val delta = DisplayFormat.socDeltaShort(engine?.socDeltaPoints)
             StatusChip(
-                text = if (delta != null) "Зарядка · $delta" else "Зарядка",
+                text = engine?.let(::chargingLabel) ?: "Зарядка",
                 icon = Icons.Outlined.Bolt,
                 container = extra.charging.copy(alpha = 0.16f),
                 content = extra.charging,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+        AnimatedVisibility(visible = pluggedIdle(engine), enter = fadeIn(), exit = fadeOut()) {
+            StatusChip(
+                text = "Кабель подключён · заряд не идёт",
+                icon = Icons.Outlined.Power,
+                container = MaterialTheme.colorScheme.surfaceContainerHigh,
+                content = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.xs),
             )
         }

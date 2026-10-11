@@ -6,6 +6,7 @@ import com.geely.ex2.range.data.store.JsonStores
 import com.geely.ex2.range.data.store.SharedJsonStore
 import com.geely.ex2.range.data.vhal.VehicleTelemetryReader
 import com.geely.ex2.range.debug.UiPreviewMock
+import com.geely.ex2.range.domain.engine.DisplaySmoother
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.engine.RangeEngine
 import com.geely.ex2.range.domain.model.AppThemeMode
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.math.roundToLong
 
 data class RangeUiState(
     val engine: EngineView? = null,
@@ -44,6 +46,7 @@ class AppContainer(
     private val stores = JsonStores(appContext.filesDir, SharedJsonStore(appContext))
     private val engine = RangeEngine()
     private val driveStats = DriveStatsTracker()
+    private val smoother = DisplaySmoother()
     private val time = AndroidTimeSource()
     private val reader = VehicleTelemetryReader(appContext)
     private val overlay = RangeOverlayController(
@@ -173,12 +176,18 @@ class AppContainer(
         persistScope.launch { stores.saveSettings(settings) }
     }
 
+    /**
+     * [rawView] — как посчитал движок; на экран и в виджет уходит сглаженная копия
+     * (см. [DisplaySmoother]). Журнал поездок и рекорды пишутся из несглаженной — до этого вызова.
+     */
     private fun publishState(
-        view: EngineView?,
+        rawView: EngineView,
         raw: RawTelemetry,
+        elapsedMs: Long,
     ) {
+        val view = smoother.apply(rawView, elapsedMs)
         val previous = _uiState.value
-        val settings = if (view?.capacityIsUserSet == true &&
+        val settings = if (view.capacityIsUserSet &&
             view.usableCapacityKwh != previous.settings.usableCapacityKwh
         ) {
             previous.settings.copy(usableCapacityKwh = view.usableCapacityKwh)
@@ -206,7 +215,10 @@ class AppContainer(
                 OverlayWindowSnapshot(
                     windowKm = window.windowKm,
                     status = window.status,
-                    rangeTo0Km = window.rangeTo0Km,
+                    // Сглаженный прогноз ползёт каждый тик, а виджет показывает целые км —
+                    // перерисовываем панель, только когда меняется видимое число.
+                    rangeTo0Km = window.rangeTo0Km?.roundToLong(),
+                    rangeToReserveKm = window.rangeToReserveKm?.roundToLong(),
                 )
             },
         )
@@ -225,8 +237,9 @@ class AppContainer(
                 val read = UiPreviewMock.read(time.wallClockMs())
                 val view = engine.onTick(read.tick)
                 publishState(
-                    view = view,
+                    rawView = view,
                     raw = read.raw,
+                    elapsedMs = read.tick.elapsedRealtimeMs,
                 )
             }
             return
@@ -298,8 +311,9 @@ class AppContainer(
                 }
             }
             publishState(
-                view = view,
+                rawView = view,
                 raw = read.raw,
+                elapsedMs = read.tick.elapsedRealtimeMs,
             )
             if (read.raw.carReady) {
                 reader.subscribeLive()
@@ -369,7 +383,8 @@ class AppContainer(
 private data class OverlayWindowSnapshot(
     val windowKm: Double,
     val status: com.geely.ex2.range.domain.model.WindowStatus,
-    val rangeTo0Km: Double?,
+    val rangeTo0Km: Long?,
+    val rangeToReserveKm: Long?,
 )
 
 private data class OverlaySnapshot(

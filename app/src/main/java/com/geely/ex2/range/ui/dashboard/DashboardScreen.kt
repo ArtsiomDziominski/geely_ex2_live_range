@@ -77,6 +77,7 @@ fun DashboardScreen(
                     windows = engine.windows,
                     charging = engine.charging,
                     vehicleRangeRemainingKm = engine.vehicleRangeRemainingKm,
+                    chargingTitle = chargingLabel(engine),
                 )
             }
         }
@@ -98,6 +99,7 @@ fun DashboardScreen(
                     windows = engine.windows,
                     charging = engine.charging,
                     vehicleRangeRemainingKm = engine.vehicleRangeRemainingKm,
+                    chargingTitle = chargingLabel(engine),
                 )
             }
             if (connectError != null) {

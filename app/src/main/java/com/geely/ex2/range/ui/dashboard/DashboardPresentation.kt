@@ -5,7 +5,6 @@ import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.format.DisplayFormat
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RangeWindow
-import com.geely.ex2.range.domain.model.WindowStatus
 import kotlin.math.abs
 
 /**
@@ -29,15 +28,13 @@ data class HeroRange(
 
 /**
  * Крупный запас хода на главной — среднее по всем готовым окнам прогноза (одно окно — само его
- * значение, несколько — среднее между ними), иначе оценка головного устройства, иначе «нет данных».
+ * значение, несколько — среднее между ними; считает движок, [EngineView.forecastAverageKm]),
+ * иначе оценка головного устройства, иначе «нет данных».
  */
 fun heroRange(engine: EngineView?): HeroRange {
     if (engine == null) return HeroRange(null, "Запас хода — нет данных", null)
-    val ready = engine.windows
-        .filter { it.status == WindowStatus.READY }
-        .mapNotNull { it.rangeTo0Km }
-    if (ready.isNotEmpty()) {
-        val average = ready.average()
+    val average = engine.forecastAverageKm?.takeIf { it.isFinite() }
+    if (average != null) {
         return HeroRange(km = average, caption = "Запас хода · среднее по окнам", forecastAverageKm = average)
     }
     val vehicle = engine.vehicleRangeRemainingKm?.takeIf { it.isFinite() && it > 0f }
@@ -60,6 +57,27 @@ fun kmUntilLowSoc(hero: HeroRange, socPercent: Float?): Double? {
     val threshold = RangeConstants.RESERVE_SOC_PERCENT
     if (soc <= threshold) return null
     return km * (soc - threshold) / soc
+}
+
+/**
+ * Подпись идущей зарядки: «Зарядка AC · 6.2 кВт · ещё 1 ч 20 мин». Без показаний машины
+ * (зарядку выдал только рост SOC) — «Зарядка · ↑ 1.2%» либо просто «Зарядка».
+ */
+fun chargingLabel(engine: EngineView): String {
+    val charge = engine.charge?.takeIf { it.energyFlowing }
+    if (charge == null) {
+        val delta = DisplayFormat.socDeltaShort(engine.socDeltaPoints)
+        return if (delta != null) "Зарядка · $delta" else "Зарядка"
+    }
+    val parts = mutableListOf(if (charge.isDc) "Зарядка DC" else "Зарядка AC")
+    DisplayFormat.powerKw(charge.powerKw)?.let(parts::add)
+    charge.minutesLeft?.let { parts += "ещё " + DisplayFormat.duration(it * 60_000L) }
+    return parts.joinToString(" · ")
+}
+
+/** Кабель вставлен, но энергия в батарею не идёт: зарядка закончилась, на паузе или ждёт старта. */
+fun pluggedIdle(engine: EngineView?): Boolean {
+    return engine != null && !engine.charging && engine.charge?.plugged == true
 }
 
 /** Подсказка под расходом текущей поездки — состояния движка сохранены дословно. */

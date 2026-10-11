@@ -6,6 +6,7 @@ import com.geely.ex2.range.domain.calculation.DistanceAccumulator
 import com.geely.ex2.range.domain.calculation.RangeWindows
 import com.geely.ex2.range.domain.decode.SocDecoder
 import com.geely.ex2.range.domain.model.BufferPoint
+import com.geely.ex2.range.domain.model.ChargeState
 import com.geely.ex2.range.domain.model.ConsumptionRates
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.Gear
@@ -30,6 +31,8 @@ data class EngineView(
     val parked: Boolean,
     val waitingForDrive: Boolean,
     val charging: Boolean,
+    /** Показания машины о зарядке — для подписи; сам факт зарядки смотреть в [charging]. */
+    val charge: ChargeState?,
     val period: ConsumptionRates,
     val trip: ConsumptionRates,
     val tripIncomplete: Boolean,
@@ -40,6 +43,8 @@ data class EngineView(
     val tripTempStartC: Float?,
     val tripTempEndC: Float?,
     val windows: List<RangeWindow>,
+    /** Среднее «до 0 %» по готовым окнам — крупный запас хода на главной. Null, пока ни одно не готово. */
+    val forecastAverageKm: Double?,
     val usableCapacityKwh: Double?,
     val capacityIsUserSet: Boolean,
     val odometerTrusted: Boolean,
@@ -178,6 +183,9 @@ class RangeEngine {
         } else {
             RangeWindows.estimateAll(buffer, tick.socPercent)
         }
+        val readyRangesKm = windows
+            .filter { it.status == WindowStatus.READY }
+            .mapNotNull { it.rangeTo0Km }
         return EngineView(
             socPercent = tick.socPercent,
             socDeltaPoints = socDelta,
@@ -189,6 +197,7 @@ class RangeEngine {
             parked = parked,
             waitingForDrive = parked || (trip?.active != true),
             charging = charging,
+            charge = tick.charge,
             period = periodRates,
             trip = tripRates,
             tripIncomplete = tripIncomplete && trip?.active == true,
@@ -199,6 +208,7 @@ class RangeEngine {
             tripTempStartC = tripSnapshot?.tempStartC,
             tripTempEndC = tripSnapshot?.tempEndC,
             windows = windows,
+            forecastAverageKm = readyRangesKm.takeIf { it.isNotEmpty() }?.average(),
             usableCapacityKwh = capacity,
             capacityIsUserSet = userCapacityKwh != null,
             odometerTrusted = distance.odometerTrusted,
@@ -339,10 +349,13 @@ class RangeEngine {
 
     private fun detectCharging(tick: TelemetryTick, parked: Boolean): Boolean {
         if (tick.chargingLikelyHint) return true
+        val standing = tick.speedKmh == null || tick.speedKmh < 1f
+        // Мощность зарядки с машины — основной признак. Рост SOC остаётся запасным: неотвеченное
+        // чтение мощности приходит нулём, и отличить его от «не заряжается» нельзя.
+        if (tick.charge?.energyFlowing == true && (parked || standing)) return true
         val soc = tick.socPercent ?: return false
         val previous = lastSoc ?: return false
         val rose = soc - previous > 0.15f
-        val standing = tick.speedKmh == null || tick.speedKmh < 1f
         return rose && (parked || standing)
     }
 }

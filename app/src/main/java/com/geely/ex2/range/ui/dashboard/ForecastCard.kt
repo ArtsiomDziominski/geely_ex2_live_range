@@ -57,6 +57,7 @@ fun ForecastCard(
     charging: Boolean,
     vehicleRangeRemainingKm: Float?,
     modifier: Modifier = Modifier,
+    chargingTitle: String = "Зарядка",
 ) {
     val layout = LocalRangeLayout.current
     var selectedKm by rememberSaveable { mutableStateOf(RangeConstants.WINDOW_KM_15) }
@@ -92,8 +93,8 @@ fun ForecastCard(
             val extra = RangeThemeColors.extra
             InfoBanner(
                 icon = Icons.Outlined.Bolt,
-                title = "Зарядка",
-                description = "SOC растёт — прогноз по расходу временно недоступен.",
+                title = chargingTitle,
+                description = "Идёт зарядка — прогноз по расходу временно недоступен.",
                 container = extra.charging.copy(alpha = 0.16f),
                 content = extra.charging,
             )

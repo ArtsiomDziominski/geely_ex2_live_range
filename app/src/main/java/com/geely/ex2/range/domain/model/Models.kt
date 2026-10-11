@@ -21,7 +21,24 @@ data class TelemetryTick(
     val chargingLikelyHint: Boolean = false,
     /** Vehicle's own remaining-range estimate (RANGE_REMAINING), км — справочно, окна 5/15/30 не подменяет. */
     val vehicleRangeRemainingKm: Float? = null,
+    /** Срез зарядки с машины; null — свойства зарядки не читались (мок, тесты, нет Car API). */
+    val charge: ChargeState? = null,
 )
+
+/**
+ * Что машина сама говорит о зарядке. Null в поле — свойство не ответило.
+ * [powerKw] — большее из AC/DC; [minutesLeft] — оценка машины до конца зарядки.
+ */
+data class ChargeState(
+    val plugged: Boolean?,
+    val powerKw: Float?,
+    val isDc: Boolean = false,
+    val minutesLeft: Int? = null,
+) {
+    /** Энергия реально идёт в батарею: ниже порога машина с кабелем только поддерживает себя. */
+    val energyFlowing: Boolean
+        get() = powerKw != null && powerKw >= RangeConstants.CHARGING_MIN_POWER_KW
+}
 
 data class BufferPoint(
     val elapsedRealtimeMs: Long,
@@ -240,7 +257,19 @@ object RangeConstants {
      */
     const val CHECKPOINT_INTERVAL_MS = 15_000L
     const val SOC_ODOMETER_POLL_MS = 10_000L
+    /**
+     * Постоянная времени сглаживания прогноза км и расхода на экране: за это время число
+     * проходит ~63 % пути к новому значению, за три таких интервала — 95 %. Втрое дольше шага
+     * опроса SOC/одометра, чтобы ступеньки между опросами сливались в плавный ход.
+     */
+    const val DISPLAY_SMOOTHING_TAU_MS = 30_000L
     const val OUTSIDE_TEMP_POLL_MS = 200_000L
+    /** Опрос зарядки, пока вставлен кабель или идёт заряд; без кабеля — как SOC, раз в 10 с. */
+    const val CHARGE_ACTIVE_POLL_MS = 3_000L
+    /** Ниже этой мощности кабель вставлен, но энергия в батарею не идёт. */
+    const val CHARGING_MIN_POWER_KW = 0.3f
+    /** Потолок правдоподобной мощности зарядки — выше считаем мусором, а не показанием. */
+    const val CHARGING_MAX_POWER_KW = 400f
     const val WH_PER_KWH = 1000.0
     /** Trips shorter than this are noise (parking shuffle) and do not update records. */
     const val MIN_COUNTED_TRIP_KM = 0.1

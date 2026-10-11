@@ -1,5 +1,6 @@
 package com.geely.ex2.range.domain.engine
 
+import com.geely.ex2.range.domain.model.ChargeState
 import com.geely.ex2.range.domain.model.EngineCheckpoint
 import com.geely.ex2.range.domain.model.Gear
 import com.geely.ex2.range.domain.model.PeriodSnapshot
@@ -98,6 +99,35 @@ class RangeEngineTest {
         }
     }
 
+    /** Мощность с машины даёт зарядку на каждом тике, даже пока SOC между опросами не сдвинулся. */
+    @Test
+    fun chargePowerMarksChargingWithoutSocRise() {
+        val engine = RangeEngine()
+        park(engine, startMs = 0)
+        val flowing = ChargeState(plugged = true, powerKw = 6.2f, minutesLeft = 90)
+        val view = engine.onTick(sample(3_000, 80f, 0f, Gear.PARK, charge = flowing))
+        assertTrue(view.charging)
+        assertEquals(flowing, view.charge)
+        assertTrue(view.windows.all { it.status == WindowStatus.CHARGING })
+    }
+
+    @Test
+    fun pluggedWithoutPowerIsNotCharging() {
+        val engine = RangeEngine()
+        park(engine, startMs = 0)
+        val idle = ChargeState(plugged = true, powerKw = 0f)
+        assertFalse(engine.onTick(sample(3_000, 80f, 0f, Gear.PARK, charge = idle)).charging)
+    }
+
+    /** Мусорная мощность на ходу не должна глушить прогноз. */
+    @Test
+    fun chargePowerIgnoredWhileMoving() {
+        val engine = RangeEngine()
+        val flowing = ChargeState(plugged = null, powerKw = 6.2f)
+        engine.onTick(sample(0, 80f, 60f, Gear.DRIVE, charge = flowing))
+        assertFalse(engine.onTick(sample(1_000, 80f, 60f, Gear.DRIVE, charge = flowing)).charging)
+    }
+
     @Test
     fun socStaysFractionalInBuffer() {
         val engine = RangeEngine()
@@ -145,6 +175,19 @@ class RangeEngineTest {
         assertTrue(thirty.remainingToFillKm!! < RangeConstants.WINDOW_KM_30)
     }
 
+    @Test
+    fun forecastAverageIsMeanOfReadyWindows() {
+        val engine = RangeEngine()
+        assertEquals(null, engine.onTick(sample(0, 80f, 90f, Gear.DRIVE, odometerKm = 0f)).forecastAverageKm)
+
+        // 20 км пути: окна 5 и 15 км готовы, 30 км ещё набирается.
+        drive(engine, startMs = 1_000, seconds = 800, startSoc = 80f, kmh = 90f)
+        val view = engine.onTick(sample(802_000, 60f, 90f, Gear.DRIVE, odometerKm = 20.02f))
+        val ready = view.windows.filter { it.status == WindowStatus.READY }.map { it.rangeTo0Km!! }
+        assertEquals(2, ready.size)
+        assertEquals(ready.average(), view.forecastAverageKm!!, 1e-9)
+    }
+
     private fun drive(
         engine: RangeEngine,
         startMs: Long,
@@ -175,6 +218,7 @@ class RangeEngineTest {
         gear: Gear,
         odometerKm: Float? = null,
         charging: Boolean = false,
+        charge: ChargeState? = null,
     ): TelemetryTick {
         return TelemetryTick(
             elapsedRealtimeMs = tMs,
@@ -188,6 +232,7 @@ class RangeEngineTest {
             currentCapacityWh = null,
             nominalCapacityWh = 51_000f,
             chargingLikelyHint = charging,
+            charge = charge,
         )
     }
 }

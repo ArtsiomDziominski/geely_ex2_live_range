@@ -2,11 +2,13 @@ package com.geely.ex2.range.data.vhal
 
 import android.content.Context
 import android.os.SystemClock
+import com.geely.ex2.range.domain.decode.ChargingDecoder
 import com.geely.ex2.range.domain.decode.GearDecoder
 import com.geely.ex2.range.domain.decode.RangeRemainingDecoder
 import com.geely.ex2.range.domain.decode.SocDecoder
 import com.geely.ex2.range.domain.decode.SpeedDecoder
 import com.geely.ex2.range.domain.decode.TemperatureDecoder
+import com.geely.ex2.range.domain.model.ChargeState
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RawPropertyLine
 import com.geely.ex2.range.domain.model.RawTelemetry
@@ -50,9 +52,8 @@ class VehicleTelemetryReader(context: Context) {
     private var cachedRangeRemainingInt: CarClient.Probe<Int>? = null
     private var lastRangeRemainingElapsedMs: Long = Long.MIN_VALUE
 
-    private var cachedChargeState: CarClient.Probe<Int>? = null
-    private var cachedPlugState: CarClient.Probe<Int>? = null
-    private var lastChargeStateElapsedMs: Long = Long.MIN_VALUE
+    private var cachedCharge: ChargeBundle? = null
+    private var lastChargeElapsedMs: Long = Long.MIN_VALUE
 
     fun connect(): RawTelemetry {
         val debug = StringBuilder()
@@ -104,7 +105,7 @@ class VehicleTelemetryReader(context: Context) {
         val socBundle = readSoc(elapsedMs)
         val odoBundle = readOdometer(elapsedMs)
         val rangeRemainingBundle = readRangeRemaining(elapsedMs)
-        val chargeStateBundle = readChargeState(elapsedMs)
+        val chargeBundle = readCharge(elapsedMs)
         val gearProbe = client.readInt(VhalIds.PROP_CURRENT_GEAR)
         val (ambient, env) = readOutsideTemperature(elapsedMs)
         val peps = client.readInt(VhalIds.PROP_PEPS_POWER_MODE)
@@ -131,14 +132,7 @@ class VehicleTelemetryReader(context: Context) {
         if (rangeRemainingBundle.int != null) {
             lines += rangeRemainingBundle.int.line("RANGE_REMAINING int", "fallback, как PERF_ODOMETER на этом авто")
         }
-        lines += chargeStateBundle.dischargingState.line(
-            "CHARGING_DISCHARGING_STATE",
-            "из com.timhss.geelybattery; сними значение вживую при зарядке/без",
-        )
-        lines += chargeStateBundle.plugState.line(
-            "CHARGING_PLUG_STATE",
-            "оттуда же; 0 предположительно «нет вилки» — не подтверждено",
-        )
+        lines += chargeBundle.lines
         lines += gearProbe.line("CURRENT_GEAR", "P=4 R=2 N=1 D=8", GearDecoder.fromVhal(gearValue)?.label)
         lines += ambient.line("AC_AMBIENT_TEMP", "опрос раз в 200 с, (raw-80)/2", outside?.let { String.format(Locale.US, "%.1f °C", it) })
         lines += env.line("ENV_OUTSIDE_TEMPERATURE", "float °C fallback")
@@ -156,6 +150,7 @@ class VehicleTelemetryReader(context: Context) {
             currentCapacityWh = socBundle.currentCap.value,
             nominalCapacityWh = socBundle.nominalCap.value,
             vehicleRangeRemainingKm = vehicleRangeRemaining,
+            charge = chargeBundle.state,
         )
         return TelemetryRead(
             tick = tick,
@@ -187,9 +182,8 @@ class VehicleTelemetryReader(context: Context) {
         cachedRangeRemainingFloat = null
         cachedRangeRemainingInt = null
         lastRangeRemainingElapsedMs = Long.MIN_VALUE
-        cachedChargeState = null
-        cachedPlugState = null
-        lastChargeStateElapsedMs = Long.MIN_VALUE
+        cachedCharge = null
+        lastChargeElapsedMs = Long.MIN_VALUE
         client.close()
     }
 
@@ -210,9 +204,9 @@ class VehicleTelemetryReader(context: Context) {
         val int: CarClient.Probe<Int>?,
     )
 
-    private data class ChargeStateBundle(
-        val dischargingState: CarClient.Probe<Int>,
-        val plugState: CarClient.Probe<Int>,
+    private data class ChargeBundle(
+        val state: ChargeState,
+        val lines: List<RawPropertyLine>,
     )
 
     private fun readSoc(elapsedMs: Long): SocBundle {
@@ -303,25 +297,73 @@ class VehicleTelemetryReader(context: Context) {
         return RangeRemainingBundle(floatProbe, cachedRangeRemainingInt)
     }
 
-    private fun readChargeState(elapsedMs: Long): ChargeStateBundle {
-        val cached = cachedChargeStateBundle()
-        if (!pollDue(lastChargeStateElapsedMs, elapsedMs, RangeConstants.SOC_ODOMETER_POLL_MS) && cached != null) {
-            return cached
+    /**
+     * Функция Flyme в приоритете, сырое свойство — только если функция не дала ответа
+     * (см. [ChargingDecoder]). Время и вход зарядного читаются лишь пока энергия идёт.
+     */
+    private fun readCharge(elapsedMs: Long): ChargeBundle {
+        val cached = cachedCharge
+        if (cached != null) {
+            val active = cached.state.plugged == true || cached.state.energyFlowing
+            val intervalMs = if (active) RangeConstants.CHARGE_ACTIVE_POLL_MS else RangeConstants.SOC_ODOMETER_POLL_MS
+            if (!pollDue(lastChargeElapsedMs, elapsedMs, intervalMs)) return cached
         }
-        val dischargingState = client.readInt(VhalIds.PROP_CHARGING_DISCHARGING_STATE)
-        val plugState = client.readInt(VhalIds.PROP_CHARGING_PLUG_STATE)
-        cachedChargeState = dischargingState
-        cachedPlugState = plugState
-        if (dischargingState.ok || plugState.ok) {
-            lastChargeStateElapsedMs = elapsedMs
+        val lines = mutableListOf<RawPropertyLine>()
+
+        val plugFunction = client.readInt(VhalIds.FUNC_CHARGING_PLUG_STATE)
+        val plugAnswered = plugFunction.value == ChargingDecoder.PLUG_STATE_CONNECTED ||
+            plugFunction.value == ChargingDecoder.PLUG_STATE_DISCONNECTED
+        val obcCc = if (plugAnswered) null else client.readInt(VhalIds.PROP_OBC_STS_CC)
+        val plugged = ChargingDecoder.plugged(plugFunction.value, obcCc?.value)
+        lines += plugFunction.line(
+            "CHARGING_PLUG_STATE func",
+            "0x24130213 кабель / 0x24130212 нет",
+            plugged?.let { if (it) "кабель вставлен" else "кабеля нет" },
+        )
+        if (obcCc != null) lines += obcCc.line("OBC_STS_CC", "запасной путь, 1 = кабель")
+
+        val acKw = readChargePower("AC", VhalIds.FUNC_CHARGING_AC_POWER, VhalIds.PROP_CHARGING_AC_POWER, lines)
+        val dcKw = readChargePower("DC", VhalIds.FUNC_CHARGING_DC_POWER, VhalIds.PROP_CHARGING_DC_POWER, lines)
+
+        var minutesLeft: Int? = null
+        if (maxOf(acKw ?: 0f, dcKw ?: 0f) >= RangeConstants.CHARGING_MIN_POWER_KW) {
+            val timeFunction = client.readFloat(VhalIds.FUNC_CHARGING_TIME_LEFT)
+            val timeProperty = if ((timeFunction.value ?: 0f) > 0f) {
+                null
+            } else {
+                client.readInt(VhalIds.PROP_CHARGING_FINISH_TIME)
+            }
+            minutesLeft = ChargingDecoder.minutesLeft(timeFunction.value, timeProperty?.value)
+            lines += timeFunction.line("CHARGING_TIME_LEFT func", "мин, 0 = не заряжается", minutesLeft?.let { "$it мин" })
+            if (timeProperty != null) lines += timeProperty.line("BMSH_FinishChgTime", "запасной путь, мин, 1800 = нет оценки")
+            lines += client.readFloat(VhalIds.FUNC_CHARGING_INPUT_VOLTS).line("CHARGING_INPUT_U func", "В на входе зарядного")
+            lines += client.readFloat(VhalIds.FUNC_CHARGING_INPUT_AMPS).line("CHARGING_INPUT_I func", "А на входе зарядного")
         }
-        return ChargeStateBundle(dischargingState, plugState)
+        lines += client.readInt(VhalIds.PROP_VCU_CHARGE_STATUS)
+            .line("VCU_StsChg", "0 нет / 1 идёт зарядка / 2 пауза или конец; в расчёте не участвует")
+
+        val bundle = ChargeBundle(ChargingDecoder.decode(plugged, acKw, dcKw, minutesLeft), lines)
+        cachedCharge = bundle
+        lastChargeElapsedMs = elapsedMs
+        return bundle
     }
 
-    private fun cachedChargeStateBundle(): ChargeStateBundle? {
-        val dischargingState = cachedChargeState ?: return null
-        val plugState = cachedPlugState ?: return null
-        return ChargeStateBundle(dischargingState, plugState)
+    private fun readChargePower(
+        label: String,
+        functionId: Int,
+        propertyId: Int,
+        lines: MutableList<RawPropertyLine>,
+    ): Float? {
+        val function = client.readFloat(functionId)
+        val property = if ((function.value ?: 0f) > 0f) null else client.readInt(propertyId)
+        val kw = ChargingDecoder.powerKw(function.value, property?.value)
+        lines += function.line(
+            "CHARGING_${label}_PWR func",
+            "кВт",
+            kw?.let { String.format(Locale.US, "%.1f кВт", it) },
+        )
+        if (property != null) lines += property.line("CHARGING_${label}_PWR", "запасной путь, ×0,1 кВт")
+        return kw
     }
 
     private fun pollDue(lastElapsedMs: Long, nowElapsedMs: Long, intervalMs: Long): Boolean {
