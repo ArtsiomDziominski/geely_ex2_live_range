@@ -17,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.domain.engine.EngineView
+import com.geely.ex2.range.domain.model.AppStyle
 import com.geely.ex2.range.ui.components.ErrorState
 import com.geely.ex2.range.ui.components.SectionCard
+import com.geely.ex2.range.ui.dashboard.styles.StyledDashboard
 import com.geely.ex2.range.ui.layout.LocalRangeLayout
 import com.geely.ex2.range.ui.theme.Spacing
 
@@ -36,6 +38,7 @@ fun DashboardScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    style: AppStyle = AppStyle.CLASSIC,
 ) {
     val layout = LocalRangeLayout.current
 
@@ -48,6 +51,17 @@ fun DashboardScreen(
         )
 
         engine == null -> DashboardSkeleton(modifier = modifier, contentPadding = contentPadding)
+
+        // Оформления-макеты свёрстаны под широкий экран ГУ; в узком окне остаётся классическая
+        // раскладка в цветах выбранного оформления.
+        layout.twoPane && style != AppStyle.CLASSIC -> StyledDashboard(
+            style = style,
+            engine = engine,
+            connectError = connectError,
+            onResetPeriod = onResetPeriod,
+            onRetry = onRetry,
+            modifier = modifier.padding(contentPadding),
+        )
 
         layout.twoPane -> Row(
             modifier = modifier

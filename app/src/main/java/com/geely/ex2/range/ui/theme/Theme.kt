@@ -2,6 +2,7 @@ package com.geely.ex2.range.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
@@ -12,6 +13,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.geely.ex2.range.domain.model.AppStyle
 import com.geely.ex2.range.domain.model.AppThemeMode
 
 val FlymeAccent = Color(0xFF0A6BFF)
@@ -181,15 +183,54 @@ fun resolveDarkTheme(mode: AppThemeMode): Boolean {
 @Composable
 fun RangeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    style: AppStyle = AppStyle.CLASSIC,
     content: @Composable () -> Unit,
 ) {
-    val extra = if (darkTheme) DarkExtraColors else LightExtraColors
-    CompositionLocalProvider(LocalExtraColors provides extra) {
+    val baseExtra = if (darkTheme) DarkExtraColors else LightExtraColors
+    val baseScheme = if (darkTheme) DarkColors else LightColors
+    val styleColors = styleColors(style, darkTheme)
+    val extra = if (styleColors == null) baseExtra else baseExtra.styled(styleColors, darkTheme)
+    val scheme = if (styleColors == null) baseScheme else baseScheme.styled(styleColors, darkTheme)
+    CompositionLocalProvider(
+        LocalExtraColors provides extra,
+        LocalStyleColors provides styleColors,
+    ) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = scheme,
             typography = RangeTypography,
             shapes = RangeShapes,
             content = content,
         )
     }
 }
+
+/** Схема Material в цветах оформления — чтобы «Поездки», «Справка» и «Настройки» не выбивались. */
+private fun ColorScheme.styled(colors: StyleColors, dark: Boolean): ColorScheme = copy(
+    primary = colors.accentText,
+    onPrimary = if (dark) colors.onAccent else Color.White,
+    primaryContainer = colors.track,
+    onPrimaryContainer = colors.text,
+    secondaryContainer = colors.track,
+    onSecondaryContainer = colors.text,
+    background = colors.background,
+    onBackground = colors.text,
+    surface = colors.panel,
+    onSurface = colors.text,
+    surfaceVariant = colors.track,
+    onSurfaceVariant = colors.muted,
+    surfaceContainerLowest = colors.panel,
+    surfaceContainerLow = colors.panel,
+    surfaceContainer = colors.panel,
+    surfaceContainerHigh = colors.inset,
+    surfaceContainerHighest = colors.track,
+    outline = colors.muted,
+    outlineVariant = colors.line,
+)
+
+private fun RangeExtraColors.styled(colors: StyleColors, dark: Boolean): RangeExtraColors = copy(
+    info = colors.accentText,
+    chartSoc = colors.chartSoc,
+    chartSpeed = if (dark) colors.text.copy(alpha = 0.75f) else colors.muted,
+    chartTemp = colors.reserve,
+    skeleton = colors.track,
+)

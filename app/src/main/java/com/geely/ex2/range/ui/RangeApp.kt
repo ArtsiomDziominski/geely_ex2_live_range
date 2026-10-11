@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.tappableElement
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -50,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -70,6 +76,7 @@ import com.geely.ex2.range.ui.help.HelpScreen
 import com.geely.ex2.range.ui.layout.LocalRangeLayout
 import com.geely.ex2.range.ui.layout.ProvideRangeLayout
 import com.geely.ex2.range.ui.settings.SettingsScreen
+import com.geely.ex2.range.ui.theme.LocalStyleColors
 import com.geely.ex2.range.ui.theme.RangeTheme
 import com.geely.ex2.range.ui.theme.Spacing
 import com.geely.ex2.range.ui.theme.resolveDarkTheme
@@ -81,14 +88,14 @@ private const val ROUTE_HELP = "help"
 private const val ROUTE_SETTINGS = "settings"
 
 @Immutable
-private data class Destination(
+internal data class Destination(
     val route: String,
     val label: String,
     val selectedIcon: ImageVector,
     val icon: ImageVector,
 )
 
-private val Destinations = listOf(
+internal val Destinations = listOf(
     Destination(ROUTE_DASHBOARD, "Главная", Icons.Filled.Dashboard, Icons.Outlined.Dashboard),
     Destination(ROUTE_TRIPS, "Поездки", Icons.Filled.BarChart, Icons.Outlined.BarChart),
     Destination(ROUTE_HELP, "Справка", Icons.AutoMirrored.Filled.Help, Icons.AutoMirrored.Outlined.HelpOutline),
@@ -161,7 +168,7 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
         }
     }
 
-    RangeTheme(darkTheme = darkTheme) {
+    RangeTheme(darkTheme = darkTheme, style = settings.style) {
         ProvideRangeLayout {
             val layout = LocalRangeLayout.current
             val screenInsets = WindowInsets.systemBars.union(WindowInsets.tappableElement)
@@ -177,7 +184,40 @@ fun RangeApp(viewModel: RangeViewModel = viewModel(), navigateHomeSignal: Int = 
                 0.dp
             }
 
-            Scaffold(
+            // Оформления-макеты на широком экране приносят свою навигацию и обходятся без шапки.
+            val styleColors = LocalStyleColors.current
+            if (layout.useNavigationRail && styleColors != null) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(listOf(styleColors.background, styleColors.backgroundEnd)),
+                        ),
+                ) {
+                    // Scaffold здесь нет, а цвет текста по умолчанию задаёт именно он: без этого
+                    // заголовки экранов остались бы чёрными и в тёмной теме.
+                    CompositionLocalProvider(LocalContentColor provides styleColors.text) {
+                        StyledAppFrame(
+                            style = settings.style,
+                            navController = navController,
+                            onNavigate = { destination -> navigateTab(destination) },
+                            onAppInfo = { showAppInfo = true },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .windowInsetsPadding(screenInsets)
+                                .consumeWindowInsets(screenInsets)
+                                .padding(bottom = fallbackBottom),
+                        ) {
+                            RangeNavHost(
+                                navController = navController,
+                                viewModel = viewModel,
+                                onOverlayEnabledChange = { enabled -> onOverlayEnabledChange(enabled) },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+            } else Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
@@ -317,6 +357,7 @@ private fun RangeNavHost(
             val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
             DashboardScreen(
                 engine = dashboard.engine,
+                style = settings.style,
                 connectError = dashboard.connectError,
                 onResetPeriod = viewModel::resetPeriod,
                 onRetry = viewModel::retry,
@@ -345,6 +386,7 @@ private fun RangeNavHost(
                 onOverlayEnabledChange = onOverlayEnabledChange,
                 onOverlayWindowShownChange = viewModel::setOverlayWindowShown,
                 onThemeModeChange = viewModel::setThemeMode,
+                onStyleChange = viewModel::setStyle,
             )
         }
     }

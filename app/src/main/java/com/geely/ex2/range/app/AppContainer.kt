@@ -9,6 +9,7 @@ import com.geely.ex2.range.debug.UiPreviewMock
 import com.geely.ex2.range.domain.engine.DisplaySmoother
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.engine.RangeEngine
+import com.geely.ex2.range.domain.model.AppStyle
 import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.EngineCheckpoint
@@ -151,6 +152,14 @@ class AppContainer(
     fun setThemeMode(mode: AppThemeMode) {
         synchronized(lock) {
             val settings = _uiState.value.settings.copy(themeMode = mode)
+            persistSettings(settings)
+            _uiState.value = _uiState.value.copy(settings = settings)
+        }
+    }
+
+    fun setStyle(style: AppStyle) {
+        synchronized(lock) {
+            val settings = _uiState.value.settings.copy(style = style)
             persistSettings(settings)
             _uiState.value = _uiState.value.copy(settings = settings)
         }

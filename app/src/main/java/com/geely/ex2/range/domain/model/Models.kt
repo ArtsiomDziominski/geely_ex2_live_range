@@ -94,6 +94,25 @@ enum class AppThemeMode(val storageKey: String, val label: String) {
     }
 }
 
+/**
+ * Оформление приложения: раскладка главной, навигация и палитра. У каждого есть светлая и тёмная
+ * тема — какая из них включена, решает [AppThemeMode].
+ */
+enum class AppStyle(val storageKey: String, val label: String, val description: String) {
+    CLASSIC("classic", "Классика", "Карточки, как было раньше"),
+    COCKPIT("cockpit", "Кокпит", "Приборный: круговая шкала заряда, окна прогноза полосами"),
+    NORDIC("nordic", "Нордик", "Крупные числа и тонкие линии, разделы вкладками сверху"),
+    BENTO("bento", "Бенто", "Плитки и «дорога заряда», три окна сразу, разделы в доке снизу"),
+    NATIVE("native", "Штатный", "В духе интерфейса головного устройства"),
+    ;
+
+    companion object {
+        fun fromStorageKey(key: String?): AppStyle {
+            return entries.find { it.storageKey == key } ?: CLASSIC
+        }
+    }
+}
+
 /** Край экрана, к которому прижат виджет поверх окон. */
 enum class OverlayEdge(val storageKey: String) {
     LEFT("left"),
@@ -125,6 +144,7 @@ data class SettingsSnapshot(
     /** Окна, кольца которых показаны на виджете поверх окон; хотя бы одно всегда остаётся. */
     val overlayWindowsKm: Set<Double> = RangeConstants.RANGE_WINDOWS_KM.toSet(),
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    val style: AppStyle = AppStyle.CLASSIC,
 )
 
 data class EngineCheckpoint(

@@ -7,6 +7,7 @@ import com.geely.ex2.range.app.RangeApplication
 import com.geely.ex2.range.app.RangeUiState
 import com.geely.ex2.range.domain.engine.EngineView
 import com.geely.ex2.range.domain.model.ActiveTripView
+import com.geely.ex2.range.domain.model.AppStyle
 import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.DriveStatsView
 import com.geely.ex2.range.domain.model.RawTelemetry
@@ -113,6 +114,12 @@ class RangeViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(mode: AppThemeMode) {
         viewModelScope.launch(Dispatchers.Default) {
             container.setThemeMode(mode)
+        }
+    }
+
+    fun setStyle(style: AppStyle) {
+        viewModelScope.launch(Dispatchers.Default) {
+            container.setStyle(style)
         }
     }
 

@@ -237,7 +237,7 @@ private fun ChargingConsumptionNote() {
 }
 
 @Composable
-private fun ResetPeriodDialog(
+internal fun ResetPeriodDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {

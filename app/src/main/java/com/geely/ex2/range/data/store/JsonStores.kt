@@ -1,5 +1,6 @@
 package com.geely.ex2.range.data.store
 
+import com.geely.ex2.range.domain.model.AppStyle
 import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.BufferPoint
 import com.geely.ex2.range.domain.model.DriveStatsSnapshot
@@ -54,6 +55,7 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             overlayPlacement = overlayPlacement,
             overlayWindowsKm = overlayWindowsKm,
             themeMode = themeMode,
+            style = AppStyle.fromStorageKey(json.optString("style", null)),
         )
     }
 
@@ -67,6 +69,7 @@ class JsonStores(private val dir: File, private val shared: SharedJsonStore? = n
             .put("overlayCollapsed", settings.overlayPlacement.collapsed)
             .put("overlayWindowsKm", JSONArray(settings.overlayWindowsKm))
             .put("themeMode", settings.themeMode.storageKey)
+            .put("style", settings.style.storageKey)
         atomicWrite(settingsFile, json.toString())
     }
 

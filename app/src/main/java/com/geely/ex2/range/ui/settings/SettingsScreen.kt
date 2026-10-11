@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -18,10 +21,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.geely.ex2.range.BuildConfig
 import com.geely.ex2.range.domain.format.DisplayFormat
+import com.geely.ex2.range.domain.model.AppStyle
 import com.geely.ex2.range.domain.model.AppThemeMode
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.SettingsSnapshot
@@ -34,6 +39,7 @@ fun SettingsScreen(
     onOverlayEnabledChange: (Boolean) -> Unit,
     onOverlayWindowShownChange: (windowKm: Double, shown: Boolean) -> Unit,
     onThemeModeChange: (AppThemeMode) -> Unit,
+    onStyleChange: (AppStyle) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -49,10 +55,15 @@ fun SettingsScreen(
             "Настройки",
             style = MaterialTheme.typography.headlineSmall,
         )
+        StyleSetting(
+            selected = settings.style,
+            onSelected = onStyleChange,
+            modifier = Modifier.padding(top = 24.dp),
+        )
         ThemeSettingRow(
             selected = settings.themeMode,
             onSelected = onThemeModeChange,
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = 20.dp),
         )
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 20.dp),
@@ -93,6 +104,53 @@ private fun VersionRow(modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+    }
+}
+
+/** Оформление: раскладка главной, навигация и палитра. Светлая или тёмная — выбирается ниже, в «Теме». */
+@Composable
+private fun StyleSetting(
+    selected: AppStyle,
+    onSelected: (AppStyle) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            "Оформление",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            "Вид главного экрана и меню разделов. У каждого оформления есть светлая и тёмная тема",
+            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Column(Modifier.selectableGroup()) {
+            AppStyle.entries.forEach { style ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = selected == style,
+                            role = Role.RadioButton,
+                            onClick = { onSelected(style) },
+                        )
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = selected == style, onClick = null)
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(style.label, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            style.description,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
         }
     }
 }
