@@ -85,7 +85,7 @@ internal fun BentoDashboard(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 SmallTile(Icons.Outlined.Speed, "Скорость", ui.speed, "км/ч", colors, Modifier.weight(1f))
-                SmallTile(Icons.Outlined.Thermostat, "За бортом", ui.outsideTemp, "°C", colors, Modifier.weight(1f))
+                SmallTile(Icons.Outlined.DirectionsCar, "Передача", ui.gear, null, colors, Modifier.weight(1f))
             }
         }
         Row(
@@ -114,7 +114,7 @@ internal fun BentoDashboard(
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                SmallTile(Icons.Outlined.DirectionsCar, "Передача", ui.gear, null, colors, Modifier.weight(1f))
+                SmallTile(Icons.Outlined.Thermostat, "За бортом", ui.outsideTemp, "°C", colors, Modifier.weight(1f))
                 SmallTile(
                     Icons.Outlined.Straighten,
                     "Одометр",
