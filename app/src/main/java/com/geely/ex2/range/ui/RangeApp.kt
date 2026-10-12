@@ -85,7 +85,7 @@ import com.geely.ex2.range.ui.theme.Spacing
 import com.geely.ex2.range.ui.theme.resolveDarkTheme
 import com.geely.ex2.range.ui.trips.TripsScreen
 
-private const val ROUTE_DASHBOARD = "dashboard"
+internal const val ROUTE_DASHBOARD = "dashboard"
 private const val ROUTE_TRIPS = "trips"
 private const val ROUTE_HELP = "help"
 internal const val ROUTE_SETTINGS = "settings"

@@ -36,6 +36,9 @@ data class DashboardUi(
     /** Наш прогноз готов (а не подменён оценкой ГУ) — есть что раскладывать на «дороге заряда». */
     val forecastReady: Boolean,
     val toReserveKm: String?,
+    /** Наш прогноз к оценке ГУ: «+5%»; null — нет прогноза или оценки ГУ. */
+    val rangeDeltaLabel: String?,
+    val rangeDeltaTone: VehicleDeltaTone?,
     /** Доля пути до резерва от пути до 0 %; null — прогноза нет или резерв уже пройден. */
     val reserveFraction: Float?,
     val speed: String,
@@ -87,6 +90,7 @@ fun dashboardUi(engine: EngineView): DashboardUi {
     val vehicleKm = engine.vehicleRangeRemainingKm?.takeIf { it.isFinite() && it > 0f }
     val forecastKm = hero.forecastAverageKm?.takeIf { it.isFinite() && it > 0.0 }
     val toReserve = kmUntilLowSoc(hero, soc)
+    val rangeDelta = DisplayFormat.rangeDeltaPercent(forecastKm, vehicleKm)
 
     // Общая шкала полос: самое длинное из готовых окон и оценки ГУ, с запасом справа.
     val readyKm = engine.windows
@@ -108,6 +112,8 @@ fun dashboardUi(engine: EngineView): DashboardUi {
         },
         forecastReady = forecastKm != null,
         toReserveKm = toReserve?.let { DisplayFormat.kmNumber(it) },
+        rangeDeltaLabel = DisplayFormat.rangeDeltaLabel(rangeDelta),
+        rangeDeltaTone = rangeDelta?.let(::vehicleDeltaTone),
         reserveFraction = if (toReserve != null && forecastKm != null) {
             (toReserve / forecastKm).toFloat().coerceIn(0f, 1f)
         } else {

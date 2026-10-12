@@ -18,17 +18,23 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,10 +52,11 @@ import com.geely.ex2.range.ui.theme.StyleColors
 
 private const val APP_INFO_LABEL = "О приложении"
 private const val CAR_LABEL = "Geely EX2"
+private const val NORDIC_HIDE_LABEL = "Скрыть"
 
 /**
  * Каркас приложения для оформлений-макетов на широком экране: у каждого своя навигация —
- * боковая панель с подписями, вкладки сверху, док снизу или меню слева. Заголовка-шапки нет,
+ * боковая панель с подписями, колонка кружков слева, док снизу или меню слева. Заголовка-шапки нет,
  * место отдано содержимому. Текущий раздел читается только внутри панелей навигации, чтобы
  * смена вкладки не перекомпоновывала весь каркас.
  */
@@ -78,14 +85,7 @@ internal fun StyledAppFrame(
                     .fillMaxHeight(),
             ) { content() }
         }
-        AppStyle.NORDIC -> Column(modifier) {
-            NordicTabs(navController, colors, settingsBadge, onNavigate, onAppInfo)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            ) { content() }
-        }
+        AppStyle.NORDIC -> NordicFrame(navController, colors, settingsBadge, onNavigate, onAppInfo, modifier, content)
         AppStyle.BENTO -> Column(modifier) {
             Box(
                 Modifier
@@ -175,93 +175,179 @@ private fun CockpitRail(
     }
 }
 
-/** «Нордик»: разделы текстовыми вкладками сверху, активная подчёркнута акцентом. */
+/**
+ * Навигация «Нордика» скрыта на главной: главная показывает кнопку, которая вернёт панель.
+ * Null вне «Нордика» — там панель не прячется.
+ */
+@Immutable
+internal class NordicNavState(val hidden: Boolean, val onShow: () -> Unit)
+
+internal val LocalNordicNav = compositionLocalOf<NordicNavState?> { null }
+
+/**
+ * «Нордик»: колонка разделов у левого края, иконки в кружках с подписью. На главной панель
+ * можно скрыть — место отдаётся цифрам, а кнопка «Меню» внизу главной возвращает её.
+ * Скрыта она только на главной: при уходе на другой раздел панель снова видна.
+ */
 @Composable
-private fun NordicTabs(
+private fun NordicFrame(
     navController: NavHostController,
     colors: StyleColors,
     settingsBadge: Boolean,
     onNavigate: (String) -> Unit,
     onAppInfo: () -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit,
 ) {
-    val route = currentRoute(navController)
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-                .padding(horizontal = 46.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(R.string.app_title),
-                modifier = Modifier.width(240.dp),
-                fontSize = 23.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.text,
-            )
-            Row(
-                modifier = Modifier
+    var hidden by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { entry ->
+            if (entry.destination.route != ROUTE_DASHBOARD) hidden = false
+        }
+    }
+    val navState = remember(hidden) { NordicNavState(hidden = hidden, onShow = { hidden = false }) }
+    Row(modifier) {
+        if (!hidden) {
+            NordicRail(navController, colors, settingsBadge, onNavigate, onAppInfo, onHide = { hidden = true })
+        }
+        CompositionLocalProvider(LocalNordicNav provides navState) {
+            Box(
+                Modifier
                     .weight(1f)
                     .fillMaxHeight(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Destinations.forEach { destination ->
-                    val selected = route == destination.route
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .selectable(
-                                selected = selected,
-                                role = Role.Tab,
-                                onClick = { onNavigate(destination.route) },
-                            )
-                            .drawBehind {
-                                if (selected) {
-                                    val thickness = 3.dp.toPx()
-                                    drawRect(
-                                        color = colors.accent,
-                                        topLeft = Offset(0f, size.height - thickness),
-                                        size = Size(size.width, thickness),
-                                    )
-                                }
-                            }
-                            .padding(horizontal = 26.dp),
-                        contentAlignment = Alignment.Center,
+            ) { content() }
+        }
+    }
+}
+
+@Composable
+private fun NordicRail(
+    navController: NavHostController,
+    colors: StyleColors,
+    settingsBadge: Boolean,
+    onNavigate: (String) -> Unit,
+    onAppInfo: () -> Unit,
+    onHide: () -> Unit,
+) {
+    val route = currentRoute(navController)
+    Row(Modifier.fillMaxHeight()) {
+        Column(
+            modifier = Modifier
+                .width(126.dp)
+                .fillMaxHeight()
+                .padding(top = 26.dp, bottom = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Destinations.forEach { destination ->
+                val selected = route == destination.route
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = selected,
+                            role = Role.Tab,
+                            onClick = { onNavigate(destination.route) },
+                        )
+                        .padding(vertical = 12.dp),
+                ) {
+                    if (selected) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopStart)
+                                .size(width = 4.dp, height = 60.dp)
+                                .background(colors.accent),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(
-                                destination.label,
-                                fontSize = 20.sp,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) colors.text else colors.muted,
+                        NordicCircle(filled = selected, colors = colors) {
+                            NavIcon(
+                                icon = if (selected) destination.selectedIcon else destination.icon,
+                                tint = if (selected) colors.background else colors.text,
+                                size = 26,
+                                badge = settingsBadge && destination.route == ROUTE_SETTINGS,
+                                colors = colors,
                             )
-                            if (settingsBadge && destination.route == ROUTE_SETTINGS) {
-                                BadgeDot(colors)
-                            }
                         }
+                        Text(
+                            destination.label,
+                            fontSize = 15.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (selected) colors.text else colors.muted,
+                            maxLines = 1,
+                        )
                     }
                 }
             }
-            Box(Modifier.width(240.dp), contentAlignment = Alignment.CenterEnd) {
-                InfoButton(
-                    colors.text,
-                    onAppInfo,
+            Spacer(Modifier.weight(1f))
+            InfoButton(
+                colors.text,
+                onAppInfo,
+                Modifier
+                    .size(54.dp)
+                    .border(1.5.dp, colors.text, CircleShape),
+            )
+            if (route == ROUTE_DASHBOARD) {
+                Box(
                     Modifier
-                        .size(54.dp)
-                        .border(1.5.dp, colors.text, CircleShape),
+                        .padding(vertical = 16.dp)
+                        .size(width = 72.dp, height = 1.dp)
+                        .background(colors.line),
+                )
+                NordicNavToggle(
+                    icon = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                    label = NORDIC_HIDE_LABEL,
+                    description = "Скрыть навигацию",
+                    colors = colors,
+                    onClick = onHide,
                 )
             }
         }
         Box(
             Modifier
-                .fillMaxWidth()
-                .height(1.dp)
+                .width(1.dp)
+                .fillMaxHeight()
                 .background(colors.line),
         )
+    }
+}
+
+/** Кружок «Нордика»: обводка, у выбранного раздела — заливка цветом текста. */
+@Composable
+private fun NordicCircle(filled: Boolean, colors: StyleColors, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(60.dp)
+            .border(1.5.dp, colors.text, CircleShape)
+            .background(if (filled) colors.text else Color.Transparent, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+/** Кнопка «Скрыть» навигацию «Нордика»: кружок со стрелкой и подпись под ним. */
+@Composable
+private fun NordicNavToggle(
+    icon: ImageVector,
+    label: String,
+    description: String,
+    colors: StyleColors,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = description, onClick = onClick)
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        NordicCircle(filled = false, colors = colors) {
+            Icon(icon, contentDescription = null, tint = colors.text, modifier = Modifier.size(28.dp))
+        }
+        Text(label, fontSize = 15.sp, color = colors.muted, maxLines = 1)
     }
 }
 

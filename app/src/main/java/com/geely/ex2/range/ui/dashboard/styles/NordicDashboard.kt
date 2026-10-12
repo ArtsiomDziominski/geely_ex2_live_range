@@ -1,6 +1,8 @@
 package com.geely.ex2.range.ui.dashboard.styles
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,29 +16,43 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.QuestionMark
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.geely.ex2.range.R
+import com.geely.ex2.range.ui.LocalNordicNav
 import com.geely.ex2.range.ui.theme.RangeThemeColors
 import com.geely.ex2.range.ui.theme.StyleColors
 
-/** Размер макета «Нордик» под строкой вкладок, в пикселях макета. */
-internal const val NORDIC_DESIGN_WIDTH = 1920f
-internal const val NORDIC_DESIGN_HEIGHT = 984f
+/**
+ * Размер макета «Нордик» справа от колонки разделов, в пикселях макета. Когда колонку
+ * скрывают, лишнюю ширину забирает блок запаса хода.
+ */
+internal const val NORDIC_DESIGN_WIDTH = 1768f
+internal const val NORDIC_DESIGN_HEIGHT = 1080f
 
 private const val RESERVE_SHARE = 0.2f
+private const val MENU_LABEL = "Меню"
 
 /**
- * «Нордик»: без карточек, всё держится на размере чисел и тонких линиях. Слева запас хода
- * и заряд, справа три окна прогноза колонками, график и расход.
+ * «Нордик»: без карточек, всё держится на размере чисел и тонких линиях. У левого края колонка
+ * движения — скорость, передача и t° за бортом, дальше шапка с одометром, запас хода и заряд,
+ * справа три окна прогноза колонками, график и расход.
  */
 @Composable
 internal fun NordicDashboard(
@@ -49,84 +65,208 @@ internal fun NordicDashboard(
     modifier: Modifier = Modifier,
 ) {
     Row(modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            RangeBlock(ui, colors)
-            ChargeBlock(ui, colors)
-            Row(Modifier.height(96.dp)) {
-                Metric("Скорость", ui.speed, "км/ч", colors, Modifier.weight(1f), first = true)
-                Metric("За бортом", ui.outsideTemp, "°C", colors, Modifier.weight(1f))
-                Metric("Передача", ui.gear, null, colors, Modifier.weight(0.8f))
-                Metric("Одометр", ui.odometer, "км", colors, Modifier.weight(1.6f))
-            }
-        }
-        Box(
-            Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(colors.line),
-        )
-        ForecastColumn(
+        DriveColumn(
             ui = ui,
             colors = colors,
-            selectedKm = selectedKm,
-            onSelectWindow = onSelectWindow,
-            onResetPeriod = onResetPeriod,
-            onForecastInfo = onForecastInfo,
             modifier = Modifier
-                .width(820.dp)
+                .width(240.dp)
                 .fillMaxHeight()
-                .padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 48.dp),
+                .padding(horizontal = 24.dp),
         )
+        VRule(colors)
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        ) {
+            Header(ui, colors)
+            Rule(colors)
+            Row(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 136.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    RangeBlock(ui, colors)
+                    ChargeBlock(ui, colors)
+                }
+                VRule(colors)
+                ForecastColumn(
+                    ui = ui,
+                    colors = colors,
+                    selectedKm = selectedKm,
+                    onSelectWindow = onSelectWindow,
+                    onResetPeriod = onResetPeriod,
+                    onForecastInfo = onForecastInfo,
+                    modifier = Modifier
+                        .width(772.dp)
+                        .fillMaxHeight()
+                        .padding(start = 48.dp, end = 48.dp, top = 44.dp, bottom = 48.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Колонка движения: три равные ячейки без подписей, значение по центру, единица под ним.
+ * Пока навигация скрыта, внизу кнопка «Меню», которая её возвращает.
+ */
+@Composable
+private fun DriveColumn(ui: DashboardUi, colors: StyleColors, modifier: Modifier = Modifier) {
+    val nav = LocalNordicNav.current
+    Column(modifier) {
+        DriveCell("Скорость", ui.speed, "км/ч", colors, Modifier.weight(1f))
+        Rule(colors)
+        DriveCell("Передача", ui.gear, null, colors, Modifier.weight(1f))
+        Rule(colors)
+        DriveCell("За бортом", ui.outsideTemp, "°C", colors, Modifier.weight(1f))
+        if (nav != null && nav.hidden) {
+            Rule(colors)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 28.dp, bottom = 40.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                MenuButton(colors, nav.onShow)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DriveCell(
+    label: String,
+    value: String,
+    unit: String?,
+    colors: StyleColors,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clearAndSetSemantics {
+                contentDescription = listOfNotNull(label, value, unit).joinToString(" ")
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+    ) {
+        Txt(value, 104, colors.text, weight = FontWeight.Light)
+        Box(Modifier.height(30.dp), contentAlignment = Alignment.Center) {
+            if (unit != null) {
+                Txt(unit, 26, colors.muted, weight = FontWeight.Normal)
+            }
+        }
+    }
+}
+
+/** «Меню» — возвращает скрытую колонку разделов. */
+@Composable
+private fun MenuButton(colors: StyleColors, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = "Показать навигацию", onClick = onClick)
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier
+                .size(64.dp)
+                .border(1.5.dp, colors.text, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.Menu, contentDescription = null, tint = colors.text, modifier = Modifier.size(28.dp))
+        }
+        Txt(MENU_LABEL, 18, colors.muted, weight = FontWeight.Normal)
+    }
+}
+
+/** Шапка: название слева, одометр справа — мелко, он нужен редко. */
+@Composable
+private fun Header(ui: DashboardUi, colors: StyleColors) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .padding(start = 56.dp, end = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Txt(stringResource(R.string.app_title), 28, colors.text)
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Txt("Одометр", 20, colors.muted, Modifier.alignByBaseline(), weight = FontWeight.Normal)
+            Txt(ui.odometer, 36, colors.text, Modifier.alignByBaseline(), weight = FontWeight.Normal)
+            Txt("км", 20, colors.muted, Modifier.alignByBaseline(), weight = FontWeight.Normal)
+        }
     }
 }
 
 @Composable
 private fun RangeBlock(ui: DashboardUi, colors: StyleColors) {
-    Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Txt("Запас хода", 26, colors.muted, weight = FontWeight.Normal)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Figure(
-                value = ui.rangeKm,
-                unit = if (ui.hasRange) "км" else null,
-                size = 340,
-                unitSize = 72,
-                color = colors.text,
-                unitColor = colors.muted,
-                weight = FontWeight.Light,
-                gap = 22,
-                unitWeight = FontWeight.Normal,
-            )
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (ui.toReserveKm != null) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .size(14.dp)
-                                .background(colors.accent),
-                        )
-                        Txt("≈ ${ui.toReserveKm} км", 44, colors.text)
-                    }
-                    Txt("до резерва 20 %", 22, colors.muted, weight = FontWeight.Normal)
-                }
-                Txt(ui.rangeCaption, 20, colors.muted, Modifier.padding(top = 10.dp), weight = FontWeight.Normal)
+        Figure(
+            value = ui.rangeKm,
+            unit = if (ui.hasRange) "км" else null,
+            size = 300,
+            unitSize = 72,
+            color = colors.text,
+            unitColor = colors.muted,
+            weight = FontWeight.Light,
+            gap = 22,
+            unitWeight = FontWeight.Normal,
+        )
+        if (ui.rangeDeltaLabel != null && ui.vehicleKm != null) {
+            // Сразу за главным числом: читалка произносит сравнение следом за запасом хода.
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Txt(
+                    ui.rangeDeltaLabel,
+                    32,
+                    deltaColor(ui.rangeDeltaTone, colors.text),
+                    Modifier.alignByBaseline(),
+                )
+                Txt(
+                    "к оценке ГУ · ${ui.vehicleKm} км",
+                    24,
+                    colors.muted,
+                    Modifier.alignByBaseline(),
+                    weight = FontWeight.Normal,
+                )
             }
         }
+        if (ui.toReserveKm != null) {
+            Row(
+                modifier = Modifier.padding(top = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(14.dp)
+                        .background(colors.accent),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Txt("≈ ${ui.toReserveKm} км", 44, colors.text, Modifier.alignByBaseline())
+                    Txt(
+                        "до резерва 20 %",
+                        22,
+                        colors.muted,
+                        Modifier.alignByBaseline(),
+                        weight = FontWeight.Normal,
+                    )
+                }
+            }
+        }
+        Txt(ui.rangeCaption, 20, colors.muted, weight = FontWeight.Normal)
     }
 }
 
@@ -191,45 +331,6 @@ private fun ChargeBlock(ui: DashboardUi, colors: StyleColors) {
                 Txt("резерв 20 %", 20, colors.accentText, Modifier.padding(start = 14.dp))
             }
             Txt("100 %", 20, colors.muted, Modifier.align(Alignment.CenterEnd), weight = FontWeight.Normal)
-        }
-    }
-}
-
-@Composable
-private fun Metric(
-    label: String,
-    value: String,
-    unit: String?,
-    colors: StyleColors,
-    modifier: Modifier = Modifier,
-    first: Boolean = false,
-) {
-    Row(modifier.fillMaxHeight()) {
-        if (!first) {
-            Box(
-                Modifier
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(colors.line),
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(start = if (first) 0.dp else 28.dp, end = 12.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Txt(label, 20, colors.muted, weight = FontWeight.Normal)
-            Figure(
-                value,
-                unit,
-                60,
-                24,
-                colors.text,
-                colors.muted,
-                weight = FontWeight.Normal,
-                unitWeight = FontWeight.Normal,
-            )
         }
     }
 }
@@ -404,6 +505,16 @@ private fun Rule(colors: StyleColors) {
         Modifier
             .fillMaxWidth()
             .height(1.dp)
+            .background(colors.line),
+    )
+}
+
+@Composable
+private fun VRule(colors: StyleColors) {
+    Box(
+        Modifier
+            .width(1.dp)
+            .fillMaxHeight()
             .background(colors.line),
     )
 }
