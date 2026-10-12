@@ -15,6 +15,7 @@ import com.geely.ex2.range.ui.dashboard.kmUntilLowSoc
 import com.geely.ex2.range.ui.dashboard.pluggedIdle
 import com.geely.ex2.range.ui.dashboard.tripHint
 import com.geely.ex2.range.ui.dashboard.vehicleDeltaTone
+import com.geely.ex2.range.ui.dashboard.windowFillTargetKm
 import com.geely.ex2.range.ui.dashboard.windowFilledFraction
 import kotlin.math.abs
 
@@ -71,7 +72,7 @@ data class WindowUi(
     val reserveKm: String?,
     val deltaLabel: String?,
     val deltaTone: VehicleDeltaTone?,
-    /** Что с окном, когда прогноза нет: «Ещё 3.2 км до окна», «Зарядка»… Null у готового. */
+    /** Что с окном, когда прогноза нет: «Ещё 0.4 км до прогноза», «Зарядка»… Null у готового. */
     val status: String?,
     val statusHint: String?,
     /** Длина полосы окна на общей шкале; у набирающегося — доля набранного. */
@@ -209,7 +210,7 @@ private fun windowUi(
 private fun windowStatus(window: RangeWindow): Pair<String?, String?> = when (window.status) {
     WindowStatus.READY -> null to null
     WindowStatus.NEED_MORE_KM ->
-        ("Ещё " + DisplayFormat.km(window.remainingToFillKm ?: window.windowKm) + " до окна") to
+        ("Ещё " + DisplayFormat.km(window.remainingToFillKm ?: windowFillTargetKm(window)) + " до прогноза") to
             "Продолжайте движение, чтобы накопить данные для прогноза."
     WindowStatus.SOC_UNCHANGED -> "SOC не изменился" to "Расход на этом участке слишком мал для оценки."
     WindowStatus.CHARGING -> "Зарядка" to "Прогноз возобновится, когда автомобиль поедет."

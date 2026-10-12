@@ -59,6 +59,15 @@ class ChargingDecoderTest {
     }
 
     @Test
+    fun stalePowerWithoutCableIsNotCharging() {
+        // Снято с ГУ на стоянке: кабеля нет, а функция DC всё ещё отдаёт 34,5 кВт прошлой сессии.
+        val stale = ChargingDecoder.decode(plugged = false, acKw = 0f, dcKw = 34.5f, minutesLeft = null)
+        assertFalse(stale.energyFlowing)
+        assertFalse(stale.isDc)
+        assertEquals(0f, stale.powerKw!!, 0f)
+    }
+
+    @Test
     fun pluggedWithoutPowerIsNotCharging() {
         val idle = ChargingDecoder.decode(plugged = true, acKw = 0.1f, dcKw = null, minutesLeft = 30)
         assertFalse(idle.energyFlowing)

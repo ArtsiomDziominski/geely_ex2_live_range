@@ -220,10 +220,10 @@ fun ForecastStatus(
     }
     when (window.status) {
         WindowStatus.NEED_MORE_KM -> {
-            val left = window.remainingToFillKm ?: window.windowKm
+            val left = window.remainingToFillKm ?: windowFillTargetKm(window)
             EmptyState(
                 icon = Icons.Outlined.HourglassEmpty,
-                title = "Ещё " + DisplayFormat.km(left) + " до окна " + label,
+                title = "Ещё " + DisplayFormat.km(left) + " до прогноза",
                 description = "Продолжайте движение, чтобы накопить данные для прогноза.",
                 progress = windowFilledFraction(window),
                 modifier = modifier,

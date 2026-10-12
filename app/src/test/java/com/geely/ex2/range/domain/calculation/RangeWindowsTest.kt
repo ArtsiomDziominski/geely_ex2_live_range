@@ -10,14 +10,37 @@ import org.junit.Test
 
 class RangeWindowsTest {
     @Test
-    fun windowFiveReadyAtFiveKmFifteenStillFilling() {
+    fun unfilledWindowEstimatesFromCoveredDistance() {
         val buffer = buffer(0.0 to 80f, 5.0 to 75f)
         val five = RangeWindows.estimate(buffer, 5.0, socNow = 75f)
         val fifteen = RangeWindows.estimate(buffer, 15.0, socNow = 75f)
         assertEquals(WindowStatus.READY, five.status)
         assertEquals(75.0, five.rangeTo0Km!!, 0.2)
-        assertEquals(WindowStatus.NEED_MORE_KM, fifteen.status)
-        assertTrue(fifteen.remainingToFillKm!! > 9.0)
+        // 15 км ещё не набрано — тот же темп по уже пройденным 5 км.
+        assertEquals(WindowStatus.READY, fifteen.status)
+        assertEquals(75.0, fifteen.rangeTo0Km!!, 0.2)
+        assertEquals(55.0, fifteen.rangeToReserveKm!!, 0.2)
+        assertNull(fifteen.remainingToFillKm)
+    }
+
+    @Test
+    fun firstEstimateNeedsMinimumDistance() {
+        // На месте с климатом SOC падает без километров — по 300 м прогноз не строим.
+        val short = RangeWindows.estimate(buffer(0.0 to 80f, 0.3 to 79f), 5.0, socNow = 79f)
+        assertEquals(WindowStatus.NEED_MORE_KM, short.status)
+        assertEquals(0.7, short.remainingToFillKm!!, 1e-6)
+        assertNull(short.rangeTo0Km)
+
+        val enough = RangeWindows.estimate(buffer(0.0 to 80f, 1.0 to 79f), 5.0, socNow = 79f)
+        assertEquals(WindowStatus.READY, enough.status)
+        assertEquals(79.0, enough.rangeTo0Km!!, 0.2)
+    }
+
+    @Test
+    fun emptyBufferWaitsForFirstEstimate() {
+        val window = RangeWindows.estimate(SampleRingBuffer(), 5.0, socNow = 80f)
+        assertEquals(WindowStatus.NEED_MORE_KM, window.status)
+        assertEquals(1.0, window.remainingToFillKm!!, 0.0)
     }
 
     @Test
@@ -37,13 +60,16 @@ class RangeWindowsTest {
         assertNull(window.rangeTo0Km)
     }
 
+    /** Точка с пометкой зарядки внутри окна его не глушит: расход считается по consumedSocPoints. */
     @Test
-    fun chargingInvalidatesWindow() {
+    fun chargeFlaggedPointDoesNotInvalidateWindow() {
         val buffer = SampleRingBuffer()
-        buffer.add(point(0.0, 50f, charging = false))
-        buffer.add(point(6.0, 52f, charging = true))
-        val window = RangeWindows.estimate(buffer, 5.0, socNow = 52f)
-        assertEquals(WindowStatus.CHARGING, window.status)
+        buffer.add(point(0.0, 50f, consumedSocPoints = 0.0))
+        buffer.add(point(3.0, 47f, charging = true, consumedSocPoints = 3.0))
+        buffer.add(point(6.0, 44f, consumedSocPoints = 6.0))
+        val window = RangeWindows.estimate(buffer, 5.0, socNow = 44f)
+        assertEquals(WindowStatus.READY, window.status)
+        assertEquals(5.0, window.deltaSocPoints!!, 0.05)
     }
 
     @Test

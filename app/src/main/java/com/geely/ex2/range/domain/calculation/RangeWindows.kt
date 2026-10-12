@@ -30,27 +30,27 @@ object RangeWindows {
         if (socNow == null || !socNow.isFinite()) {
             return RangeWindow(windowKm, WindowStatus.INVALID)
         }
+        val minKm = minOf(windowKm, RangeConstants.MIN_ESTIMATE_KM)
         val last = buffer.last() ?: return RangeWindow(
             windowKm = windowKm,
             status = WindowStatus.NEED_MORE_KM,
-            remainingToFillKm = windowKm,
+            remainingToFillKm = minKm,
         )
         val first = buffer.snapshot().firstOrNull() ?: last
         val covered = last.cumulativeKm - first.cumulativeKm
-        if (covered + 1e-6 < windowKm) {
+        if (covered + 1e-6 < minKm) {
             return RangeWindow(
                 windowKm = windowKm,
                 status = WindowStatus.NEED_MORE_KM,
-                remainingToFillKm = (windowKm - covered).coerceAtLeast(0.0),
+                remainingToFillKm = (minKm - covered).coerceAtLeast(0.0),
                 chart = mapChart(buffer.snapshot(), first.cumulativeKm, windowKm),
             )
         }
-        val targetKm = last.cumulativeKm - windowKm
+        // Окно ещё не набрано — считаем по тому пути, что уже есть, а не ждём все windowKm.
+        val spanKm = if (covered + 1e-6 < windowKm) covered else windowKm
+        val targetKm = last.cumulativeKm - spanKm
         val slice = buffer.sliceFrom(targetKm)
         val chart = mapChart(slice, targetKm, windowKm)
-        if (slice.any { it.chargingLikely }) {
-            return RangeWindow(windowKm, WindowStatus.CHARGING, chart = chart)
-        }
         if (slice.any { it.gap }) {
             return RangeWindow(windowKm, WindowStatus.GAP, chart = chart)
         }
@@ -79,7 +79,7 @@ object RangeWindows {
                 chart = chart,
             )
         }
-        val rangeTo0 = socNow * windowKm / deltaSoc
+        val rangeTo0 = socNow * spanKm / deltaSoc
         if (!rangeTo0.isFinite() || rangeTo0 < 0.0 || rangeTo0 > RangeConstants.MAX_RANGE_KM) {
             return RangeWindow(
                 windowKm,
@@ -89,7 +89,7 @@ object RangeWindows {
             )
         }
         val rangeToReserve = if (socNow > reserveSoc) {
-            (socNow - reserveSoc) * windowKm / deltaSoc
+            (socNow - reserveSoc) * spanKm / deltaSoc
         } else {
             0.0
         }

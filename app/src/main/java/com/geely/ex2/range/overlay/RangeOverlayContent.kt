@@ -60,6 +60,7 @@ import com.geely.ex2.range.domain.model.OverlayEdge
 import com.geely.ex2.range.domain.model.RangeConstants
 import com.geely.ex2.range.domain.model.RangeWindow
 import com.geely.ex2.range.domain.model.WindowStatus
+import com.geely.ex2.range.ui.dashboard.windowFillTargetKm
 import com.geely.ex2.range.ui.dashboard.windowFilledFraction
 import com.geely.ex2.range.ui.theme.RangeThemeColors
 import kotlinx.coroutines.delay
@@ -555,12 +556,13 @@ private fun ReadyDetails(window: RangeWindow, vehicleRangeRemainingKm: Float?) {
 @Composable
 private fun FillingDetails(window: RangeWindow, accent: Color) {
     val filled = windowFilledFraction(window)
-    val left = window.remainingToFillKm ?: window.windowKm
+    val target = windowFillTargetKm(window)
+    val left = window.remainingToFillKm ?: target
     Column {
         DetailsRow(
-            label = "Набираем окно",
-            value = DisplayFormat.kmNumber(window.windowKm - left, digits = 1) + " из " +
-                DisplayFormat.windowKmLabel(window.windowKm),
+            label = "До прогноза",
+            value = DisplayFormat.kmNumber(target - left, digits = 1) + " из " +
+                DisplayFormat.windowKmLabel(target),
         )
         Box(
             Modifier

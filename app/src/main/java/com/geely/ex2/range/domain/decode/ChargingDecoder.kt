@@ -53,6 +53,9 @@ object ChargingDecoder {
         dcKw: Float?,
         minutesLeft: Int?,
     ): ChargeState {
+        // Без кабеля энергия идти не может. Мощность DC машина после сессии не обнуляет:
+        // функция продолжает отдавать последнее значение, пока не начнётся следующая зарядка.
+        if (plugged == false) return ChargeState(plugged = false, powerKw = 0f)
         val isDc = (dcKw ?: 0f) > (acKw ?: 0f)
         val power = if (isDc) dcKw else acKw ?: dcKw
         val state = ChargeState(plugged = plugged, powerKw = power, isDc = isDc)

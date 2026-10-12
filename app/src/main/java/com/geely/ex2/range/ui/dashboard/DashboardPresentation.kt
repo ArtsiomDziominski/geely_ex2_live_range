@@ -115,9 +115,15 @@ fun vehicleDeltaTone(percent: Double?): VehicleDeltaTone {
     }
 }
 
-/** Доля набранного окна для индикатора прогресса. */
+/** Сколько км нужно набрать до первой оценки по окну. */
+fun windowFillTargetKm(window: RangeWindow): Double {
+    return minOf(window.windowKm, RangeConstants.MIN_ESTIMATE_KM)
+}
+
+/** Доля пути, набранного до первой оценки, для индикатора прогресса. */
 fun windowFilledFraction(window: RangeWindow): Float {
     val remaining = window.remainingToFillKm ?: return 1f
-    if (window.windowKm <= 0.0) return 0f
-    return ((window.windowKm - remaining) / window.windowKm).toFloat().coerceIn(0f, 1f)
+    val target = windowFillTargetKm(window)
+    if (target <= 0.0) return 0f
+    return ((target - remaining) / target).toFloat().coerceIn(0f, 1f)
 }

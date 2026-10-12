@@ -173,6 +173,7 @@ enum class WindowStatus {
 data class RangeWindow(
     val windowKm: Double,
     val status: WindowStatus,
+    /** Сколько ещё проехать до первой оценки ([RangeConstants.MIN_ESTIMATE_KM]), а не до полного окна. */
     val remainingToFillKm: Double? = null,
     val rangeTo0Km: Double? = null,
     val rangeToReserveKm: Double? = null,
@@ -265,6 +266,11 @@ object RangeConstants {
 
     const val BUFFER_KEEP_KM = 35.0
     const val MIN_SOC_STEP = 0.5
+    /**
+     * Меньше этого пути прогноз не считаем даже по неполному окну: одометр шагает по 0,1 км,
+     * SOC — по 0,1 %, а на месте с климатом SOC падает вовсе без километров.
+     */
+    const val MIN_ESTIMATE_KM = 1.0
     const val RESERVE_SOC_PERCENT = 20.0
     /** Geely EX2 — полезная ёмкость батареи, кВт·ч (проверено на авто). */
     const val EX2_DEFAULT_USABLE_CAPACITY_KWH = 39.4

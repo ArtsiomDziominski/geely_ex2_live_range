@@ -59,11 +59,11 @@ class DashboardUiTest {
 
     @Test
     fun fillingWindowShowsProgressInsteadOfForecast() {
-        val filling = RangeWindow(windowKm = 15.0, status = WindowStatus.NEED_MORE_KM, remainingToFillKm = 9.0)
+        val filling = RangeWindow(windowKm = 15.0, status = WindowStatus.NEED_MORE_KM, remainingToFillKm = 0.6)
         val window = dashboardUi(view(windows = listOf(ready(5.0, 231.0), filling))).window(15.0)
         assertFalse(window.ready)
         assertEquals("…", window.value)
-        assertEquals("Ещё 9.0 км до окна", window.status)
+        assertEquals("Ещё 0.6 км до прогноза", window.status)
         assertEquals(0.4f, window.barFraction, 0.001f)
         assertNull(window.reserveKm)
         assertNull(window.deltaLabel)

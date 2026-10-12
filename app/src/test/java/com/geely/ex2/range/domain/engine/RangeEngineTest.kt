@@ -169,10 +169,10 @@ class RangeEngineTest {
         assertTrue(five.deltaSocPoints!! > 0.0)
 
         // The 30 km window is short on *total* buffered distance — same as it'd be with no
-        // charge at all — not reset back to needing a full 30 km again.
+        // charge at all — so it estimates from the ~10 km it has instead of waiting for 30.
         val thirty = afterDrive.windows.first { it.windowKm == RangeConstants.WINDOW_KM_30 }
-        assertEquals(WindowStatus.NEED_MORE_KM, thirty.status)
-        assertTrue(thirty.remainingToFillKm!! < RangeConstants.WINDOW_KM_30)
+        assertEquals(WindowStatus.READY, thirty.status)
+        assertTrue(thirty.deltaSocPoints!! > five.deltaSocPoints!!)
     }
 
     @Test
@@ -180,11 +180,11 @@ class RangeEngineTest {
         val engine = RangeEngine()
         assertEquals(null, engine.onTick(sample(0, 80f, 90f, Gear.DRIVE, odometerKm = 0f)).forecastAverageKm)
 
-        // 20 км пути: окна 5 и 15 км готовы, 30 км ещё набирается.
+        // 20 км пути: окна 5 и 15 км набраны, 30 км считает по тем же 20 км.
         drive(engine, startMs = 1_000, seconds = 800, startSoc = 80f, kmh = 90f)
         val view = engine.onTick(sample(802_000, 60f, 90f, Gear.DRIVE, odometerKm = 20.02f))
         val ready = view.windows.filter { it.status == WindowStatus.READY }.map { it.rangeTo0Km!! }
-        assertEquals(2, ready.size)
+        assertEquals(3, ready.size)
         assertEquals(ready.average(), view.forecastAverageKm!!, 1e-9)
     }
 

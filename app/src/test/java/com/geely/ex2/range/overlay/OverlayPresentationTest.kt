@@ -27,7 +27,7 @@ class OverlayPresentationTest {
 
     @Test
     fun fillingWindowShowsCollectedShare() {
-        val filling = RangeWindow(windowKm = 30.0, status = WindowStatus.NEED_MORE_KM, remainingToFillKm = 7.5)
+        val filling = RangeWindow(windowKm = 30.0, status = WindowStatus.NEED_MORE_KM, remainingToFillKm = 0.25)
         assertEquals(GaugeState(0.75f, GaugeTone.FILLING, "…"), gaugeState(filling, charging = false, null))
     }
 
