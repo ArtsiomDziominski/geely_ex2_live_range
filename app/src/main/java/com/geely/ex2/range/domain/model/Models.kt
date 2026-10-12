@@ -98,17 +98,23 @@ enum class AppThemeMode(val storageKey: String, val label: String) {
  * Оформление приложения: раскладка главной, навигация и палитра. У каждого есть светлая и тёмная
  * тема — какая из них включена, решает [AppThemeMode].
  */
+/**
+ * Оформление. Порядок записей — порядок в списке настроек; сохраняется [storageKey], не номер,
+ * так что переставлять записи можно. Без сохранённого выбора — [DEFAULT].
+ */
 enum class AppStyle(val storageKey: String, val label: String, val description: String) {
+    NATIVE("native", "Штатный", "В духе интерфейса головного устройства"),
     CLASSIC("classic", "Классика", "Карточки, как было раньше"),
     COCKPIT("cockpit", "Кокпит", "Приборный: круговая шкала заряда, окна прогноза полосами"),
-    NORDIC("nordic", "Нордик", "Крупные числа и тонкие линии, разделы вкладками сверху"),
+    NORDIC("nordic", "Нордик", "Крупные числа и тонкие линии, разделы кружками слева"),
     BENTO("bento", "Бенто", "Плитки и «дорога заряда», три окна сразу, разделы в доке снизу"),
-    NATIVE("native", "Штатный", "В духе интерфейса головного устройства"),
     ;
 
     companion object {
+        val DEFAULT = COCKPIT
+
         fun fromStorageKey(key: String?): AppStyle {
-            return entries.find { it.storageKey == key } ?: CLASSIC
+            return entries.find { it.storageKey == key } ?: DEFAULT
         }
     }
 }
@@ -144,7 +150,7 @@ data class SettingsSnapshot(
     /** Окна, кольца которых показаны на виджете поверх окон; хотя бы одно всегда остаётся. */
     val overlayWindowsKm: Set<Double> = RangeConstants.RANGE_WINDOWS_KM.toSet(),
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
-    val style: AppStyle = AppStyle.CLASSIC,
+    val style: AppStyle = AppStyle.DEFAULT,
     /** Раз в сутки проверять, не вышла ли новая версия. Ставит её всё равно пользователь. */
     val autoUpdateCheck: Boolean = true,
 )
