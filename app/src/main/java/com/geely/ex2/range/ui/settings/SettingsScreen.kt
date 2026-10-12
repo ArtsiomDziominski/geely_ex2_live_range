@@ -1,5 +1,8 @@
 package com.geely.ex2.range.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -108,6 +112,47 @@ fun SettingsScreen(
             onCheck = onCheckUpdates,
             onInstall = onInstallUpdate,
             onAutoCheckChange = onAutoUpdateCheckChange,
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 20.dp),
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
+        DeveloperSection()
+    }
+}
+
+private const val DEVELOPER_TELEGRAM_USERNAME = "i_am_artsiom"
+
+/** Контакт разработчика: по тапу открывается его Telegram. */
+@Composable
+private fun DeveloperSection(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/$DEVELOPER_TELEGRAM_USERNAME"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                runCatching { context.startActivity(intent) }
+            }
+            .padding(vertical = 4.dp),
+    ) {
+        Text(
+            "Разработчик",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            "@$DEVELOPER_TELEGRAM_USERNAME",
+            modifier = Modifier.padding(top = 4.dp),
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            "Вопросы, предложения и поддержка — напишите в Telegram",
+            modifier = Modifier.padding(top = 4.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
