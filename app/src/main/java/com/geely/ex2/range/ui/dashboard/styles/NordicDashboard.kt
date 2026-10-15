@@ -90,7 +90,7 @@ internal fun NordicDashboard(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 136.dp),
+                        .padding(start = 56.dp, end = 56.dp, top = 44.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
                     RangeBlock(ui, colors)
